@@ -12,11 +12,13 @@ import { FocusView } from './components/FocusView';
 import { JobsPanel } from './components/JobsPanel';
 import { Backlog } from './components/Backlog';
 import { TaskForm } from './components/TaskForm';
+import { AddProjectModal } from './components/AddProjectModal';
 import './styles/global.css';
 
 export default function App() {
   const [envReady, setEnvReady] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showAddProject, setShowAddProject] = useState(false);
   const auth = useAuth();
   const projects = useProjects(auth.profile?.id);
   const tasks = useTasks(projects.current?.id || null);
@@ -48,7 +50,7 @@ export default function App() {
     return <Loading text="Loading projects..." />;
   }
 
-  // Step 5: No projects yet
+  // Step 5: No projects yet — full onboarding with Supabase setup
   if (projects.projects.length === 0) {
     return <NewProject onCreate={async (name, supabaseConfig, localPath) => { await projects.createProject(name, supabaseConfig, localPath); }} />;
   }
@@ -75,6 +77,10 @@ export default function App() {
         milestone={msProgress}
         notifications={0}
         userInitials={auth.profile.initials}
+        projects={projects.projects.map(p => ({ id: p.id, name: p.name }))}
+        currentProjectId={projects.current?.id || null}
+        onSwitchProject={projects.switchProject}
+        onNewProject={() => setShowAddProject(true)}
       />
       <main style={{
         display: 'grid',
@@ -142,6 +148,15 @@ export default function App() {
             });
           }}
           onClose={() => setShowTaskForm(false)}
+        />
+      )}
+
+      {showAddProject && (
+        <AddProjectModal
+          onClose={() => setShowAddProject(false)}
+          onCreate={async (name, localPath) => {
+            await projects.createProject(name, undefined, localPath);
+          }}
         />
       )}
     </>

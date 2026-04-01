@@ -14,6 +14,11 @@
   letter-spacing: -0.02em;
 }
 .sep { color: var(--text-4); font-weight: 300; font-size: 18px; }
+
+/* Project switcher wrapper */
+.switcher {
+  position: relative;
+}
 .project {
   font-family: var(--font);
   font-size: 15px;
@@ -25,9 +30,101 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.12s;
 }
-.project:hover { color: var(--text-2); }
-.caret { font-size: 9px; color: var(--text-3); }
+.project:hover { background: var(--bg-hover); color: var(--text); }
+.caret {
+  font-size: 9px;
+  color: var(--text-3);
+  transition: transform 0.15s ease;
+}
+.caretOpen {
+  transform: rotate(180deg);
+}
+
+/* Dropdown */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  background: var(--white);
+  border: 1px solid var(--divider);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.05);
+  z-index: 100;
+  padding: 4px 0;
+  opacity: 1;
+  transform: translateY(0);
+  animation: dropIn 0.12s ease-out;
+}
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dropdownList {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+.dropdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s;
+}
+.dropdownItem:hover {
+  background: var(--bg-hover);
+}
+.dropdownItemActive {
+  font-weight: 600;
+}
+.dropdownCheck {
+  width: 16px;
+  font-size: 13px;
+  color: var(--blue);
+  flex-shrink: 0;
+  text-align: center;
+}
+.dropdownName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dropdownDivider {
+  height: 1px;
+  background: var(--divider);
+  margin: 4px 0;
+}
+.dropdownNew {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text-3);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.dropdownNew:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
 .milestone { font-size: 13px; color: var(--text-3); }
 .icon {
   position: relative;
