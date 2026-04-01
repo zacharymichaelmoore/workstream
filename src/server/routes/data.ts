@@ -413,6 +413,201 @@ dataRouter.delete('/api/custom-types/:id', requireAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Focus ---
+
+dataRouter.get('/api/focus', requireAuth, async (req, res) => {
+  const projectId = req.query.project_id as string;
+  if (!projectId) return res.status(400).json({ error: 'project_id required' });
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('project_id', projectId)
+    .in('status', ['backlog', 'todo'])
+    .order('position', { ascending: true });
+
+  if (!tasks || tasks.length === 0) {
+    return res.json({ task: null });
+  }
+
+  // First non-blocked task
+  const focus = tasks.find(t => !t.blocked_by || t.blocked_by.length === 0) || tasks[0];
+  const focusIndex = tasks.indexOf(focus);
+  const next = tasks[focusIndex + 1] || null;
+  const then = tasks[focusIndex + 2] || null;
+
+  const isBlocked = focus.blocked_by && focus.blocked_by.length > 0;
+  const reason = isBlocked
+    ? `Top task by position (note: blocked by ${focus.blocked_by.length} task(s))`
+    : 'First non-blocked task by position';
+
+  res.json({
+    task: focus,
+    reason,
+    next: next ? { id: next.id, title: next.title } : null,
+    then: then ? { id: then.id, title: then.title } : null,
+  });
+});
+
+// --- Summary ---
+
+dataRouter.get('/api/summary', requireAuth, async (req, res) => {
+  const projectId = req.query.project_id as string;
+  if (!projectId) return res.status(400).json({ error: 'project_id required' });
+
+  const [{ data: project }, { data: tasks }, { data: jobs }, { data: milestones }] = await Promise.all([
+    supabase.from('projects').select('*').eq('id', projectId).single(),
+    supabase.from('tasks').select('*').eq('project_id', projectId).order('position'),
+    supabase.from('jobs').select('*').eq('project_id', projectId).order('started_at', { ascending: false }).limit(10),
+    supabase.from('milestones').select('*').eq('project_id', projectId),
+  ]);
+
+  const backlog = tasks?.filter(t => ['backlog', 'todo'].includes(t.status)) || [];
+  const done = tasks?.filter(t => t.status === 'done') || [];
+  const active = tasks?.filter(t => ['in_progress', 'paused', 'review'].includes(t.status)) || [];
+
+  let md = `# Project: ${project?.name || 'Unknown'}\n\n`;
+
+  if (milestones && milestones.length > 0) {
+    const ms = milestones[0];
+    const msTasks = tasks?.filter(t => t.milestone_id === ms.id) || [];
+    const msDone = msTasks.filter(t => t.status === 'done').length;
+    md += `## Milestone: ${ms.name}\n${msDone}/${msTasks.length} done${ms.deadline ? ` | Deadline: ${ms.deadline}` : ''}\n\n`;
+  }
+
+  if (active.length > 0) {
+    md += `## Active\n`;
+    for (const t of active) md += `- [${t.status}] ${t.title} (${t.type})\n`;
+    md += '\n';
+  }
+
+  if (jobs && jobs.length > 0) {
+    md += `## Recent Jobs\n`;
+    for (const j of jobs.slice(0, 5)) {
+      md += `- [${j.status}] ${j.current_phase || ''} ${j.status === 'paused' ? `-- ${j.question}` : ''}\n`;
+    }
+    md += '\n';
+  }
+
+  md += `## Backlog (${backlog.length} tasks)\n`;
+  for (const t of backlog.slice(0, 10)) {
+    md += `${backlog.indexOf(t) + 1}. ${t.title} (${t.type})\n`;
+  }
+
+  md += `\n## Done: ${done.length} tasks completed\n`;
+
+  res.json({ markdown: md });
+});
+
+// --- Single Task ---
+
+dataRouter.get('/api/tasks/:id', requireAuth, async (req, res) => {
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('id', req.params.id)
+    .single();
+  if (error) return res.status(404).json({ error: error.message });
+
+  const [{ data: jobs }, { data: comments }] = await Promise.all([
+    supabase.from('jobs').select('*').eq('task_id', req.params.id).order('started_at', { ascending: false }),
+    supabase.from('comments').select('*, profiles(name, initials)').eq('task_id', req.params.id).order('created_at', { ascending: true }),
+  ]);
+
+  res.json({ task, jobs: jobs || [], comments: comments || [] });
+});
+
+// --- Invite Flow ---
+
+dataRouter.post('/api/projects/:id/invite', requireAuth, async (req, res) => {
+  const userId = (req as any).userId;
+  const projectId = req.params.id;
+  const { email, role } = req.body;
+
+  if (!email || !role) return res.status(400).json({ error: 'email and role required' });
+  if (role !== 'admin' && role !== 'dev') return res.status(400).json({ error: 'role must be admin or dev' });
+
+  // Check caller is admin
+  const { data: callerMember } = await supabase
+    .from('project_members')
+    .select('role')
+    .eq('project_id', projectId)
+    .eq('user_id', userId)
+    .single();
+  if (!callerMember || callerMember.role !== 'admin') {
+    return res.status(403).json({ error: 'Only project admins can invite members' });
+  }
+
+  // Look up profile by email
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, name, email, initials')
+    .eq('email', email)
+    .single();
+  if (!profile) {
+    return res.status(404).json({ error: 'User not found. They need to create an account first.' });
+  }
+
+  // Add to project_members
+  const { data: member, error } = await supabase
+    .from('project_members')
+    .insert({ project_id: projectId, user_id: profile.id, role })
+    .select()
+    .single();
+  if (error) return res.status(400).json({ error: error.message });
+
+  res.json({ ok: true, member: { ...member, name: profile.name, email: profile.email, initials: profile.initials } });
+});
+
+dataRouter.delete('/api/projects/:id/members/:userId', requireAuth, async (req, res) => {
+  const callerId = (req as any).userId;
+  const projectId = req.params.id;
+  const targetUserId = req.params.userId;
+
+  // Check not removing yourself
+  if (callerId === targetUserId) {
+    return res.status(400).json({ error: 'Cannot remove yourself from the project' });
+  }
+
+  // Check caller is admin
+  const { data: callerMember } = await supabase
+    .from('project_members')
+    .select('role')
+    .eq('project_id', projectId)
+    .eq('user_id', callerId)
+    .single();
+  if (!callerMember || callerMember.role !== 'admin') {
+    return res.status(403).json({ error: 'Only project admins can remove members' });
+  }
+
+  const { error } = await supabase
+    .from('project_members')
+    .delete()
+    .eq('project_id', projectId)
+    .eq('user_id', targetUserId);
+  if (error) return res.status(400).json({ error: error.message });
+
+  res.json({ ok: true });
+});
+
+dataRouter.get('/api/projects/:id/members', requireAuth, async (req, res) => {
+  const projectId = req.params.id;
+
+  const { data } = await supabase
+    .from('project_members')
+    .select('user_id, role, profiles(id, name, email, initials)')
+    .eq('project_id', projectId);
+
+  const members = (data || []).map((d: any) => ({
+    id: d.user_id,
+    name: d.profiles?.name || 'Unknown',
+    email: d.profiles?.email || '',
+    initials: d.profiles?.initials || '??',
+    role: d.role,
+  }));
+  res.json(members);
+});
+
 // --- SSE: Realtime changes ---
 
 const changeListeners = new Map<string, Set<(data: any) => void>>();

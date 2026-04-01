@@ -12,6 +12,19 @@
   color: var(--text-3);
 }
 .count { font-size: 13px; color: var(--text-4); }
+.milestoneSelect {
+  margin-left: auto;
+  padding: 3px 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text-3);
+  background: var(--white);
+  border: 1.5px solid var(--divider);
+  border-radius: 6px;
+  outline: none;
+  cursor: pointer;
+}
+.milestoneSelect:focus { border-color: var(--blue); }
 .list {}
 .item {
   border-bottom: 1px solid var(--divider);
@@ -205,6 +218,12 @@
 }
 .commentField:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
 .commentField::placeholder { color: var(--text-4); }
+.commentHint {
+  display: block;
+  font-size: 11px;
+  color: var(--text-4);
+  margin-top: 4px;
+}
 /* commentSend and deleteBtn now use global .btn variants */
 .deleteWrap {
   margin-top: 12px;

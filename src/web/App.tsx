@@ -6,7 +6,7 @@ import { useJobs } from './hooks/useJobs';
 import { useMilestones } from './hooks/useMilestones';
 import { useMembers } from './hooks/useMembers';
 import { useNotifications } from './hooks/useNotifications';
-import { signUp, signIn, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, gitCommit, gitPush, gitPr } from './lib/api';
+import { signUp, signIn, signOut, addComment as apiAddComment, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, gitCommit, gitPush, gitPr } from './lib/api';
 import { computeFocus } from './lib/focus';
 import { OnboardingCheck } from './components/OnboardingCheck';
 import { AuthGate } from './components/AuthGate';
@@ -18,6 +18,7 @@ import type { JobView } from './components/JobsPanel';
 import { Backlog } from './components/Backlog';
 import { TaskForm } from './components/TaskForm';
 import { AddProjectModal } from './components/AddProjectModal';
+import { MembersModal } from './components/MembersModal';
 import './styles/global.css';
 
 /** Compute elapsed time as a human-readable string */
@@ -75,6 +76,8 @@ export default function App() {
   const [envReady, setEnvReady] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showAddProject, setShowAddProject] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+  const [milestoneFilter, setMilestoneFilter] = useState<string | null>(null);
   const auth = useAuth();
   const projects = useProjects(auth.profile?.id);
   const tasks = useTasks(projects.current?.id || null);
@@ -228,6 +231,8 @@ export default function App() {
         currentProjectId={projects.current?.id || null}
         onSwitchProject={projects.switchProject}
         onNewProject={() => setShowAddProject(true)}
+        onSignOut={async () => { await signOut(); window.location.reload(); }}
+        onManageMembers={() => setShowMembersModal(true)}
       />
       <main style={{
         display: 'grid',
@@ -267,51 +272,62 @@ export default function App() {
                     alert(err.message || 'Failed to start task');
                   }
                 }}
-                onSkip={async (taskId) => {
+                onSkip={async (taskId, reason) => {
                   await tasks.updateTask(taskId, { position: tasks.backlog.length + 1 });
+                  if (reason) {
+                    await apiAddComment(taskId, `Skipped: ${reason}`);
+                  }
                 }}
               />
             ) : (
               <EmptyState onAdd={() => setShowTaskForm(true)} />
             )}
-            <Backlog
-              tasks={tasks.backlog.map(t => {
-                const blockedByTitles = (t.blocked_by || [])
-                  .map(id => taskTitleMap[id])
-                  .filter((title): title is string => !!title);
-                const member = t.assignee ? memberMap[t.assignee] : null;
-                return {
-                  id: t.id,
-                  title: t.title,
-                  description: t.description || '',
-                  type: t.type,
-                  mode: t.mode,
-                  effort: t.effort,
-                  multiagent: t.multiagent,
-                  blocked: blockedByTitles.length > 0,
-                  blockedByTitles,
-                  assignee: member
-                    ? { type: 'user', name: member.name, initials: member.initials }
-                    : { type: 'ai' },
-                  images: t.images || [],
-                  status: t.status,
-                };
-              })}
-              onAddTask={() => setShowTaskForm(true)}
-              onUpdateTask={async (taskId, data) => {
-                await tasks.updateTask(taskId, data);
-              }}
-              onSwapTasks={async (idA, idB) => {
-                const taskA = tasks.backlog.find(t => t.id === idA);
-                const taskB = tasks.backlog.find(t => t.id === idB);
-                if (!taskA || !taskB) return;
-                await tasks.updateTask(idA, { position: taskB.position });
-                await tasks.updateTask(idB, { position: taskA.position });
-              }}
-              onDeleteTask={async (taskId) => {
-                await tasks.deleteTask(taskId);
-              }}
-            />
+            {tasks.loading ? (
+              <p style={{ fontSize: 14, color: 'var(--text-4)', marginTop: 24 }}>Loading tasks...</p>
+            ) : (
+              <Backlog
+                tasks={tasks.backlog.map(t => {
+                  const blockedByTitles = (t.blocked_by || [])
+                    .map(id => taskTitleMap[id])
+                    .filter((title): title is string => !!title);
+                  const member = t.assignee ? memberMap[t.assignee] : null;
+                  return {
+                    id: t.id,
+                    title: t.title,
+                    description: t.description || '',
+                    type: t.type,
+                    mode: t.mode,
+                    effort: t.effort,
+                    multiagent: t.multiagent,
+                    blocked: blockedByTitles.length > 0,
+                    blockedByTitles,
+                    assignee: member
+                      ? { type: 'user', name: member.name, initials: member.initials }
+                      : { type: 'ai' },
+                    images: t.images || [],
+                    status: t.status,
+                    milestone_id: t.milestone_id,
+                  };
+                })}
+                onAddTask={() => setShowTaskForm(true)}
+                onUpdateTask={async (taskId, data) => {
+                  await tasks.updateTask(taskId, data);
+                }}
+                onSwapTasks={async (idA, idB) => {
+                  const taskA = tasks.backlog.find(t => t.id === idA);
+                  const taskB = tasks.backlog.find(t => t.id === idB);
+                  if (!taskA || !taskB) return;
+                  await tasks.updateTask(idA, { position: taskB.position });
+                  await tasks.updateTask(idB, { position: taskA.position });
+                }}
+                onDeleteTask={async (taskId) => {
+                  await tasks.deleteTask(taskId);
+                }}
+                milestoneFilter={milestoneFilter}
+                milestones={milestones.active.map(m => ({ id: m.id, name: m.name }))}
+                onMilestoneFilter={setMilestoneFilter}
+              />
+            )}
           </div>
         </div>
         <div style={{
@@ -420,6 +436,14 @@ export default function App() {
           onCreate={async (name, localPath) => {
             await projects.createProject(name, undefined, localPath);
           }}
+        />
+      )}
+
+      {showMembersModal && projects.current && (
+        <MembersModal
+          projectId={projects.current.id}
+          currentUserId={auth.profile.id}
+          onClose={() => setShowMembersModal(false)}
         />
       )}
     </>

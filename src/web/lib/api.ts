@@ -215,6 +215,15 @@ export async function gitPr(jobId: string, localPath: string) {
   return apiFetch('/api/git/pr', { method: 'POST', body: JSON.stringify({ jobId, localPath }) });
 }
 
+// --- Invites / member management ---
+export async function inviteMember(projectId: string, email: string, role: string) {
+  return apiFetch(`/api/projects/${projectId}/invite`, { method: 'POST', body: JSON.stringify({ email, role }) });
+}
+
+export async function removeMember(projectId: string, userId: string) {
+  return apiFetch(`/api/projects/${projectId}/members/${userId}`, { method: 'DELETE' });
+}
+
 // --- Comments ---
 export async function getComments(taskId: string) {
   return apiFetch(`/api/comments?task_id=${taskId}`);

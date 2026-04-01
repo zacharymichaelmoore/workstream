@@ -6,7 +6,7 @@ interface Props {
   next: string;
   then: string;
   onRun?: (taskId: string) => void;
-  onSkip?: (taskId: string) => void;
+  onSkip?: (taskId: string, reason?: string) => void;
 }
 
 export function FocusView({ task, reason, next, then, onRun, onSkip }: Props) {
@@ -22,7 +22,10 @@ export function FocusView({ task, reason, next, then, onRun, onSkip }: Props) {
         ) : (
           <button className={s.run} onClick={() => onRun?.(task.id)}>Start</button>
         )}
-        <button className={s.skip} onClick={() => onSkip?.(task.id)}>Skip</button>
+        <button className={s.skip} onClick={() => {
+          const reason = prompt('Why skip this task?');
+          if (reason !== null) onSkip?.(task.id, reason);
+        }}>Skip</button>
         <span className={s.meta}>
           {task.type} &middot; {task.effort} &middot; {task.mode}
         </span>

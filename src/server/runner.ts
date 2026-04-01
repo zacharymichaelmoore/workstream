@@ -361,6 +361,11 @@ export async function runJob(ctx: JobContext): Promise<void> {
         args.push('--allowedTools', phaseConfig.tools.join(','));
       }
 
+      // Model selection per phase
+      if (phaseConfig.model) {
+        args.push('--model', phaseConfig.model);
+      }
+
       // Feature 1: Effort flag
       if (task.effort) {
         args.push('--effort', task.effort);
@@ -421,6 +426,40 @@ export async function runJob(ctx: JobContext): Promise<void> {
               }).eq('id', jobId);
               await supabase.from('tasks').update({ status: 'paused' }).eq('id', task.id);
               onPause(`Tests still failing after ${maxAttempts} attempts.`);
+              return;
+            }
+          }
+        }
+
+        // Review/final phase: check if output indicates failure
+        if (phase === taskType.final) {
+          const lower = output.toLowerCase();
+          const failed = lower.includes('fail') || lower.includes('issue') || lower.includes('problem') || lower.includes('reject');
+          if (failed && attempt < maxAttempts) {
+            // Jump back to the on_review_fail phase instead of re-running review
+            const jumpTarget = taskType.on_review_fail;
+            const jumpIndex = allPhases.indexOf(jumpTarget);
+            if (jumpIndex >= 0 && jumpIndex < i) {
+              onLog(`\nReview failed, jumping back to '${jumpTarget}' phase...\n`);
+              // Remove the jump target from completed so it re-runs
+              completedPhaseNames.delete(jumpTarget);
+              i = jumpIndex;
+              // Break out of the attempt loop; the outer while-loop will land on jumpTarget
+              break;
+            } else {
+              onLog(`\nReview failed, retrying...\n`);
+              continue; // Retry review if jump target not found
+            }
+          }
+          if (failed && attempt >= maxAttempts) {
+            if (taskType.on_max_retries === 'pause') {
+              await supabase.from('jobs').update({
+                status: 'paused',
+                question: `Review still failing after ${maxAttempts} attempts. Last output:\n${lastLines}`,
+                phases_completed: phasesCompleted,
+              }).eq('id', jobId);
+              await supabase.from('tasks').update({ status: 'paused' }).eq('id', task.id);
+              onPause(`Review still failing after ${maxAttempts} attempts.`);
               return;
             }
           }

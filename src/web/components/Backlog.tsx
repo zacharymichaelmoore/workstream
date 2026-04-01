@@ -2,6 +2,18 @@ import { useState } from 'react';
 import { useComments } from '../hooks/useComments';
 import s from './Backlog.module.css';
 
+function timeAgo(date: string): string {
+  const ms = Date.now() - new Date(date).getTime();
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return 'just now';
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return `${d}d ago`;
+}
+
 interface Task {
   id: string;
   title: string;
@@ -16,6 +28,12 @@ interface Task {
   assignee: { type: string; name?: string; initials?: string };
   images?: string[];
   status?: string;
+  milestone_id?: string | null;
+}
+
+interface Milestone {
+  id: string;
+  name: string;
 }
 
 interface BacklogProps {
@@ -24,19 +42,38 @@ interface BacklogProps {
   onUpdateTask?: (taskId: string, data: Record<string, unknown>) => void;
   onSwapTasks?: (idA: string, idB: string) => void;
   onDeleteTask?: (taskId: string) => void;
+  milestoneFilter?: string | null;
+  milestones?: Milestone[];
+  onMilestoneFilter?: (id: string | null) => void;
 }
 
-export function Backlog({ tasks, onAddTask, onUpdateTask, onSwapTasks, onDeleteTask }: BacklogProps) {
+export function Backlog({ tasks, onAddTask, onUpdateTask, onSwapTasks, onDeleteTask, milestoneFilter, milestones, onMilestoneFilter }: BacklogProps) {
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  const filteredTasks = milestoneFilter
+    ? tasks.filter(t => t.milestone_id === milestoneFilter)
+    : tasks;
 
   return (
     <section>
       <div className={s.header}>
         <span className={s.label}>Backlog</span>
-        <span className={s.count}>{tasks.length}</span>
+        <span className={s.count}>{filteredTasks.length}</span>
+        {milestones && milestones.length > 0 && onMilestoneFilter && (
+          <select
+            className={s.milestoneSelect}
+            value={milestoneFilter || ''}
+            onChange={e => onMilestoneFilter(e.target.value || null)}
+          >
+            <option value="">All</option>
+            {milestones.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+        )}
       </div>
       <div className={s.list}>
-        {tasks.map((task, idx) => (
+        {filteredTasks.map((task, idx) => (
           <div
             key={task.id}
             className={`${s.item} ${task.blocked ? s.blockedItem : ''} ${expanded === task.id ? s.expanded : ''}`}
@@ -50,16 +87,16 @@ export function Backlog({ tasks, onAddTask, onUpdateTask, onSwapTasks, onDeleteT
                   title="Move up"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (idx > 0) onSwapTasks?.(task.id, tasks[idx - 1].id);
+                    if (idx > 0) onSwapTasks?.(task.id, filteredTasks[idx - 1].id);
                   }}
                 >&#9650;</button>
                 <button
                   className={s.reorderBtn}
-                  disabled={idx === tasks.length - 1}
+                  disabled={idx === filteredTasks.length - 1}
                   title="Move down"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (idx < tasks.length - 1) onSwapTasks?.(task.id, tasks[idx + 1].id);
+                    if (idx < filteredTasks.length - 1) onSwapTasks?.(task.id, filteredTasks[idx + 1].id);
                   }}
                 >&#9660;</button>
               </div>
@@ -150,7 +187,7 @@ function CommentsSection({ taskId }: { taskId: string }) {
           <span className={s.commentAuthor}>{c.profiles?.initials || '??'}</span>
           <div className={s.commentContent}>
             <span className={s.commentBody}>{c.body}</span>
-            <span className={s.commentTime}>{new Date(c.created_at).toLocaleString()}</span>
+            <span className={s.commentTime}>{timeAgo(c.created_at)}</span>
           </div>
         </div>
       ))}
@@ -167,6 +204,7 @@ function CommentsSection({ taskId }: { taskId: string }) {
           Send
         </button>
       </div>
+      <span className={s.commentHint}>Use @name to mention someone</span>
     </div>
   );
 }

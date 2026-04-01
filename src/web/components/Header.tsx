@@ -27,6 +27,8 @@ interface Props {
   currentProjectId: string | null;
   onSwitchProject: (id: string) => void;
   onNewProject: () => void;
+  onSignOut?: () => void;
+  onManageMembers?: () => void;
 }
 
 function notifTimeAgo(dateStr: string): string {
@@ -53,14 +55,18 @@ export function Header({
   currentProjectId,
   onSwitchProject,
   onNewProject,
+  onSignOut,
+  onManageMembers,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open && !notifOpen) return;
+    if (!open && !notifOpen && !avatarOpen) return;
     function handleClickOutside(e: MouseEvent) {
       if (open && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
@@ -68,10 +74,13 @@ export function Header({
       if (notifOpen && notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
+      if (avatarOpen && avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setAvatarOpen(false);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [open, notifOpen]);
+  }, [open, notifOpen, avatarOpen]);
 
   return (
     <header className={s.bar}>
@@ -111,12 +120,31 @@ export function Header({
               >
                 + New Project
               </button>
+              {onManageMembers && (
+                <>
+                  <div className={s.dropdownDivider} />
+                  <button
+                    className={s.dropdownNew}
+                    onClick={() => {
+                      setOpen(false);
+                      onManageMembers();
+                    }}
+                  >
+                    Manage Members
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
       </div>
       <div className={s.right}>
-        <span className={s.milestone}>{milestone.name} &middot; {milestone.tasksDone}/{milestone.tasksTotal}</span>
+        <span className={s.milestone}>
+          {milestone.tasksTotal === 0 && milestone.name === 'All'
+            ? 'No milestone'
+            : <>{milestone.name} &middot; {milestone.tasksDone}/{milestone.tasksTotal}</>
+          }
+        </span>
         <div className={s.notifWrap} ref={notifRef}>
           <button className={s.icon} onClick={() => setNotifOpen(prev => !prev)}>
             {notifications > 0 && <span className={s.dot} />}
@@ -151,7 +179,22 @@ export function Header({
             </div>
           )}
         </div>
-        <span className={s.avatar}>{userInitials}</span>
+        <div className={s.avatarWrap} ref={avatarRef}>
+          <button className={s.avatar} onClick={() => setAvatarOpen(prev => !prev)}>{userInitials}</button>
+          {avatarOpen && (
+            <div className={s.avatarDropdown}>
+              <button
+                className={s.avatarOption}
+                onClick={() => {
+                  setAvatarOpen(false);
+                  onSignOut?.();
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
