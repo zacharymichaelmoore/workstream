@@ -165,7 +165,7 @@
   padding: 8px 18px;
   background: var(--text);
   color: var(--bg);
-  border: none;
+  border: 1.5px solid var(--text);
   border-radius: 8px;
   font-family: var(--font);
   font-size: 13px;
