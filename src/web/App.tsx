@@ -3,7 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import { useProjects } from './hooks/useProjects';
 import { useTasks } from './hooks/useTasks';
 import { useMilestones } from './hooks/useMilestones';
-import { signUp, signIn, signOut as apiSignOut } from './lib/api';
+import { signUp, signIn } from './lib/api';
 import { OnboardingCheck } from './components/OnboardingCheck';
 import { AuthGate } from './components/AuthGate';
 import { NewProject } from './components/NewProject';

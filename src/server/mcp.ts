@@ -10,7 +10,34 @@ const supabase = createClient(
 
 const server = new McpServer({ name: 'codesync', version: '1.0.0' });
 
-// project_focus — get current top task
+/**
+ * Resolve a user ID for the MCP system user.
+ * Looks up a profile named 'CodeSync Bot'; falls back to the project creator.
+ */
+async function getSystemUserId(projectId?: string): Promise<string | null> {
+  // Try to find a dedicated bot profile
+  const { data: bot } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('name', 'CodeSync Bot')
+    .limit(1)
+    .single();
+  if (bot) return bot.id;
+
+  // Fall back to the project creator if a project context is available
+  if (projectId) {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('created_by')
+      .eq('id', projectId)
+      .single();
+    if (project?.created_by) return project.created_by;
+  }
+
+  return null;
+}
+
+// project_focus -- get current top task
 server.tool('project_focus', 'Get the current focus task and why it was chosen', {
   project_id: z.string().describe('Project UUID'),
 }, async ({ project_id }) => {
@@ -31,7 +58,7 @@ server.tool('project_focus', 'Get the current focus task and why it was chosen',
   return { content: [{ type: 'text', text }] };
 });
 
-// project_summary — full state as markdown
+// project_summary -- full state as markdown
 server.tool('project_summary', 'Get full project state as LLM-readable markdown', {
   project_id: z.string().describe('Project UUID'),
 }, async ({ project_id }) => {
@@ -64,7 +91,7 @@ server.tool('project_summary', 'Get full project state as LLM-readable markdown'
   if (jobs && jobs.length > 0) {
     md += `## Recent Jobs\n`;
     for (const j of jobs.slice(0, 5)) {
-      md += `- [${j.status}] ${j.current_phase || ''} ${j.status === 'paused' ? `— ${j.question}` : ''}\n`;
+      md += `- [${j.status}] ${j.current_phase || ''} ${j.status === 'paused' ? `-- ${j.question}` : ''}\n`;
     }
     md += '\n';
   }
@@ -121,14 +148,21 @@ server.tool('task_update', 'Update a task status or fields', {
   return { content: [{ type: 'text', text: `Task ${task_id} updated.` }] };
 });
 
-// task_log — add comment
+// task_log -- add comment
 server.tool('task_log', 'Add a note/comment to a task', {
   task_id: z.string(),
   message: z.string(),
 }, async ({ task_id, message }) => {
+  // Look up the task to get its project_id for resolving the system user
+  const { data: taskRow } = await supabase.from('tasks').select('project_id').eq('id', task_id).single();
+  const userId = await getSystemUserId(taskRow?.project_id);
+  if (!userId) {
+    return { content: [{ type: 'text', text: 'Error: Could not resolve a system user for comments. Create a profile named "CodeSync Bot" or ensure the project has a creator.' }] };
+  }
+
   const { error } = await supabase.from('comments').insert({
     task_id,
-    user_id: '00000000-0000-0000-0000-000000000000', // system user for MCP
+    user_id: userId,
     body: message,
   });
   if (error) return { content: [{ type: 'text', text: `Error: ${error.message}` }] };
@@ -161,12 +195,22 @@ server.tool('job_reply', 'Answer a paused job question', {
   return { content: [{ type: 'text', text: 'Reply sent. Job will resume on next execution.' }] };
 });
 
-// job_approve
+// job_approve -- also marks the associated task as done
 server.tool('job_approve', 'Approve a job in review', {
   job_id: z.string(),
 }, async ({ job_id }) => {
+  const { data: job } = await supabase.from('jobs').select('task_id').eq('id', job_id).single();
+
   await supabase.from('jobs').update({ status: 'done', completed_at: new Date().toISOString() }).eq('id', job_id);
-  return { content: [{ type: 'text', text: 'Job approved. Use git commands to commit the changes.' }] };
+
+  if (job?.task_id) {
+    await supabase.from('tasks').update({
+      status: 'done',
+      completed_at: new Date().toISOString(),
+    }).eq('id', job.task_id);
+  }
+
+  return { content: [{ type: 'text', text: 'Job approved and task marked as done. Use git commands to commit the changes.' }] };
 });
 
 // job_reject

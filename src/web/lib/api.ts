@@ -1,8 +1,8 @@
 const BASE = '';
 
 // Session token management
-let accessToken: string | null = localStorage.getItem('codesync-token');
-let refreshToken: string | null = localStorage.getItem('codesync-refresh');
+let accessToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('codesync-token') : null;
+let refreshToken: string | null = typeof localStorage !== 'undefined' ? localStorage.getItem('codesync-refresh') : null;
 
 export function setSession(access: string, refresh: string) {
   accessToken = access;
@@ -30,7 +30,6 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
 
   if (res.status === 401 && refreshToken) {
-    // Try refresh
     const refreshRes = await fetch(`${BASE}/api/auth/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,16 +40,23 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<any> {
       setSession(data.session.access_token, data.session.refresh_token);
       headers['Authorization'] = `Bearer ${data.session.access_token}`;
       const retry = await fetch(`${BASE}${path}`, { ...options, headers });
+      if (!retry.ok) {
+        const err = await retry.json().catch(() => ({ error: retry.statusText }));
+        throw new Error(err.error || 'Request failed after token refresh');
+      }
+      if (retry.status === 204) return { ok: true };
       return retry.json();
     }
     clearSession();
     window.location.reload();
+    throw new Error('Session expired');
   }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     throw new Error(err.error || 'Request failed');
   }
+  if (res.status === 204) return { ok: true };
   return res.json();
 }
 
@@ -124,11 +130,19 @@ export async function getTasks(projectId: string) {
   return apiFetch(`/api/tasks?project_id=${projectId}`);
 }
 
-export async function createTask(data: any) {
+export async function createTask(data: {
+  project_id: string;
+  title: string;
+  description?: string;
+  type?: string;
+  mode?: string;
+  effort?: string;
+  milestone_id?: string | null;
+}) {
   return apiFetch('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function updateTask(id: string, data: any) {
+export async function updateTask(id: string, data: Record<string, unknown>) {
   return apiFetch(`/api/tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
 }
 
@@ -192,7 +206,7 @@ export async function markAllNotificationsRead() {
   return apiFetch('/api/notifications/read-all', { method: 'POST' });
 }
 
-// --- SSE: Job log stream ---
+// --- SSE: Job log stream (token passed as query param since EventSource can't set headers) ---
 export function subscribeToJob(jobId: string, handlers: {
   onLog?: (text: string) => void;
   onPhaseStart?: (phase: string, attempt: number) => void;
@@ -202,7 +216,8 @@ export function subscribeToJob(jobId: string, handlers: {
   onDone?: () => void;
   onFail?: (error: string) => void;
 }): () => void {
-  const source = new EventSource(`${BASE}/api/jobs/${jobId}/events`);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+  const source = new EventSource(`${BASE}/api/jobs/${jobId}/events${tokenParam}`);
   source.addEventListener('log', (e) => handlers.onLog?.(JSON.parse(e.data).text));
   source.addEventListener('phase_start', (e) => { const d = JSON.parse(e.data); handlers.onPhaseStart?.(d.phase, d.attempt); });
   source.addEventListener('phase_complete', (e) => { const d = JSON.parse(e.data); handlers.onPhaseComplete?.(d.phase, d.output); });
@@ -215,7 +230,8 @@ export function subscribeToJob(jobId: string, handlers: {
 
 // --- SSE: Realtime project changes ---
 export function subscribeToChanges(projectId: string, onUpdate: (data: any) => void): () => void {
-  const source = new EventSource(`${BASE}/api/changes?project_id=${projectId}`);
+  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : '';
+  const source = new EventSource(`${BASE}/api/changes?project_id=${projectId}${tokenParam}`);
   source.addEventListener('message', (e) => onUpdate(JSON.parse(e.data)));
   return () => source.close();
 }

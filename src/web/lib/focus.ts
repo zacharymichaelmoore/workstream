@@ -57,6 +57,8 @@ export function computeFocus(
   }
 
   // Score each actionable task
+  const maxPos = Math.max(...actionable.map(a => a.position), 1);
+
   const scored = actionable
     .filter(t => !blockedSet.has(t.id)) // Exclude blocked tasks
     .map(t => {
@@ -70,7 +72,6 @@ export function computeFocus(
         deadlineScore *= 2;
       }
 
-      const maxPos = Math.max(...actionable.map(a => a.position), 1);
       const positionScore = ((maxPos - t.position) / maxPos) * 1;
 
       const score = blockerScore + deadlineScore + positionScore;

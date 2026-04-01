@@ -44,17 +44,25 @@ export function NewProject({ onCreate }: Props) {
     return true;
   }
 
+  const [error, setError] = useState('');
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim() || !mode) return;
+    setError('');
     setLoading(true);
-    const config: SupabaseConfig = {
-      mode,
-      ...(mode === 'cloud' ? { url: cloudUrl.trim(), serviceRoleKey: cloudKey.trim() } : {}),
-      ...(mode === 'local' ? { url: 'http://127.0.0.1:54321' } : {}),
-    };
-    await onCreate(name.trim(), config);
-    setLoading(false);
+    try {
+      const config: SupabaseConfig = {
+        mode,
+        ...(mode === 'cloud' ? { url: cloudUrl.trim(), serviceRoleKey: cloudKey.trim() } : {}),
+        ...(mode === 'local' ? { url: 'http://127.0.0.1:54321' } : {}),
+      };
+      await onCreate(name.trim(), config);
+    } catch (err: any) {
+      setError(err.message || 'Failed to create project');
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (step === 'setup') {

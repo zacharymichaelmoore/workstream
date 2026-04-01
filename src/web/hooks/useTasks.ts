@@ -24,12 +24,19 @@ interface Task {
 export function useTasks(projectId: string | null) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!projectId) return;
-    const data = await getTasks(projectId);
-    setTasks(data);
-    setLoading(false);
+    if (!projectId) { setLoading(false); return; }
+    try {
+      const data = await getTasks(projectId);
+      setTasks(data);
+      setError(null);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => {
@@ -39,12 +46,12 @@ export function useTasks(projectId: string | null) {
     return unsub;
   }, [projectId, load]);
 
-  async function createTask(data: Partial<Task> & { title: string; project_id: string }) {
+  async function createTask(data: { title: string; project_id: string; [key: string]: any }) {
     await apiCreateTask(data);
     await load();
   }
 
-  async function updateTask(id: string, data: Partial<Task>) {
+  async function updateTask(id: string, data: Record<string, unknown>) {
     await apiUpdateTask(id, data);
     await load();
   }
@@ -58,5 +65,5 @@ export function useTasks(projectId: string | null) {
   const active = tasks.filter(t => ['in_progress', 'paused', 'review'].includes(t.status));
   const done = tasks.filter(t => t.status === 'done');
 
-  return { tasks, backlog, active, done, loading, createTask, updateTask, deleteTask, reload: load };
+  return { tasks, backlog, active, done, loading, error, createTask, updateTask, deleteTask, reload: load };
 }

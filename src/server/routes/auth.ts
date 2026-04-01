@@ -13,14 +13,28 @@ function userClient(token: string) {
   });
 }
 
+// Simple email regex for basic validation
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // Signup
 authRouter.post('/api/auth/signup', async (req, res) => {
   const { email, password, name } = req.body;
+
+  if (!email || typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'A valid email is required' });
+  }
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+
   const admin = createClient(supabaseUrl, supabaseKey);
   const { data, error } = await admin.auth.signUp({
     email,
     password,
-    options: { data: { name } },
+    options: { data: { name: name.trim() } },
   });
   if (error) return res.status(400).json({ error: error.message });
   res.json({
@@ -32,6 +46,14 @@ authRouter.post('/api/auth/signup', async (req, res) => {
 // Signin
 authRouter.post('/api/auth/signin', async (req, res) => {
   const { email, password } = req.body;
+
+  if (!email || typeof email !== 'string' || !EMAIL_RE.test(email)) {
+    return res.status(400).json({ error: 'A valid email is required' });
+  }
+  if (!password || typeof password !== 'string' || password.length === 0) {
+    return res.status(400).json({ error: 'Password is required' });
+  }
+
   const admin = createClient(supabaseUrl, supabaseKey);
   const { data, error } = await admin.auth.signInWithPassword({ email, password });
   if (error) return res.status(400).json({ error: error.message });

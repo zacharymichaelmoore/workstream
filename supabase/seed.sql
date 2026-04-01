@@ -1,0 +1,1 @@
+-- seed.sql (empty — suppresses Supabase CLI warning)

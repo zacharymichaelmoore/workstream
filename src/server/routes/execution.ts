@@ -1,11 +1,7 @@
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { runJob, cancelJob, loadTaskTypeConfig } from '../runner.js';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || 'http://127.0.0.1:54321',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-);
+import { supabase } from '../supabase.js';
+import { requireAuth } from '../auth-middleware.js';
 
 // SSE connections per job
 const sseClients = new Map<string, Set<(event: string, data: any) => void>>();
@@ -22,11 +18,23 @@ function broadcast(jobId: string, event: string, data: any) {
 export const executionRouter = Router();
 
 // Start a job
-executionRouter.post('/api/run', async (req, res) => {
+executionRouter.post('/api/run', requireAuth, async (req, res) => {
   const { taskId, projectId, localPath } = req.body;
 
   if (!taskId || !projectId || !localPath) {
     return res.status(400).json({ error: 'taskId, projectId, and localPath are required' });
+  }
+
+  // Prevent concurrent jobs for the same task
+  const { data: existingJobs } = await supabase
+    .from('jobs')
+    .select('id')
+    .eq('task_id', taskId)
+    .in('status', ['running', 'paused'])
+    .limit(1);
+
+  if (existingJobs && existingJobs.length > 0) {
+    return res.status(409).json({ error: 'A job is already running or paused for this task', jobId: existingJobs[0].id });
   }
 
   // Fetch task
@@ -67,7 +75,7 @@ executionRouter.post('/api/run', async (req, res) => {
   // Update task status
   await supabase.from('tasks').update({ status: 'in_progress' }).eq('id', taskId);
 
-  // Return job ID immediately — execution happens async
+  // Return job ID immediately -- execution happens async
   res.json({ jobId: job.id });
 
   // Run async
@@ -78,6 +86,7 @@ executionRouter.post('/api/run', async (req, res) => {
     localPath,
     task,
     taskType,
+    phasesAlreadyCompleted: [],
     onLog: (text) => broadcast(job.id, 'log', { text }),
     onPhaseStart: (phase, attempt) => broadcast(job.id, 'phase_start', { phase, attempt }),
     onPhaseComplete: (phase, output) => broadcast(job.id, 'phase_complete', { phase, output }),
@@ -119,7 +128,7 @@ executionRouter.get('/api/jobs/:id/events', (req, res) => {
 });
 
 // Reply to paused job
-executionRouter.post('/api/jobs/:id/reply', async (req, res) => {
+executionRouter.post('/api/jobs/:id/reply', requireAuth, async (req, res) => {
   const jobId = req.params.id;
   const { answer, localPath } = req.body;
 
@@ -138,6 +147,9 @@ executionRouter.post('/api/jobs/:id/reply', async (req, res) => {
 
   const taskType = loadTaskTypeConfig(localPath, task.type);
 
+  // Load phases already completed so we skip them on resume
+  const phasesAlreadyCompleted: any[] = (job.phases_completed as any[]) || [];
+
   res.json({ ok: true });
 
   // Resume execution
@@ -148,6 +160,7 @@ executionRouter.post('/api/jobs/:id/reply', async (req, res) => {
     localPath,
     task: { ...task, answer },
     taskType,
+    phasesAlreadyCompleted,
     onLog: (text) => broadcast(jobId, 'log', { text }),
     onPhaseStart: (phase, attempt) => broadcast(jobId, 'phase_start', { phase, attempt }),
     onPhaseComplete: (phase, output) => broadcast(jobId, 'phase_complete', { phase, output }),
@@ -161,7 +174,7 @@ executionRouter.post('/api/jobs/:id/reply', async (req, res) => {
 });
 
 // Approve job
-executionRouter.post('/api/jobs/:id/approve', async (req, res) => {
+executionRouter.post('/api/jobs/:id/approve', requireAuth, async (req, res) => {
   const jobId = req.params.id;
 
   const { data: job } = await supabase.from('jobs').select('*').eq('id', jobId).single();
@@ -183,7 +196,7 @@ executionRouter.post('/api/jobs/:id/approve', async (req, res) => {
 });
 
 // Reject job -> back to backlog
-executionRouter.post('/api/jobs/:id/reject', async (req, res) => {
+executionRouter.post('/api/jobs/:id/reject', requireAuth, async (req, res) => {
   const jobId = req.params.id;
   const { note } = req.body;
 

@@ -1,12 +1,7 @@
 import { spawn, ChildProcess } from 'child_process';
-import { createClient } from '@supabase/supabase-js';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-
-const supabase = createClient(
-  process.env.SUPABASE_URL || 'http://127.0.0.1:54321',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-);
+import { supabase } from './supabase.js';
 
 interface PhaseConfig {
   skill: string | null;
@@ -33,6 +28,7 @@ interface JobContext {
   localPath: string;
   task: any;
   taskType: TaskTypeConfig;
+  phasesAlreadyCompleted: any[];
   onLog: (text: string) => void;
   onPhaseStart: (phase: string, attempt: number) => void;
   onPhaseComplete: (phase: string, output: any) => void;
@@ -169,14 +165,28 @@ export function cancelJob(jobId: string) {
 }
 
 export async function runJob(ctx: JobContext): Promise<void> {
-  const { jobId, task, taskType, localPath, onLog, onPhaseStart, onPhaseComplete, onPause, onReview, onDone, onFail } = ctx;
-  const phasesCompleted: any[] = [];
+  const { jobId, task, taskType, localPath, onLog, onPhaseStart, onPhaseComplete, onPause, onReview, onDone, onFail, phasesAlreadyCompleted } = ctx;
+
+  // Seed with already-completed phases from a previous run (for resume)
+  const phasesCompleted: any[] = [...phasesAlreadyCompleted];
+
+  // Build the set of phase names already done, so we can skip them
+  const completedPhaseNames = new Set(phasesAlreadyCompleted.map((p: any) => p.phase));
 
   // Run through phases
   const allPhases = [...taskType.phases, taskType.final];
 
-  for (let i = 0; i < allPhases.length; i++) {
+  let i = 0;
+  while (i < allPhases.length) {
     const phase = allPhases[i];
+
+    // Skip phases that were already completed in a previous run
+    if (completedPhaseNames.has(phase)) {
+      onLog(`\n--- Skipping already-completed phase: ${phase} ---\n`);
+      i++;
+      continue;
+    }
+
     const phaseConfig = taskType.phase_config[phase];
     if (!phaseConfig) {
       onFail(`No config for phase: ${phase}`);
@@ -211,7 +221,7 @@ export async function runJob(ctx: JobContext): Promise<void> {
         const phaseOutput = {
           phase,
           attempt,
-          output: output.substring(0, 3000), // Cap output size
+          output: output.substring(0, 10000), // Cap output size
         };
         phasesCompleted.push(phaseOutput);
         onPhaseComplete(phase, phaseOutput);
@@ -234,8 +244,20 @@ export async function runJob(ctx: JobContext): Promise<void> {
           const lower = output.toLowerCase();
           const failed = lower.includes('fail') || lower.includes('error') || lower.includes('not passing');
           if (failed && attempt < maxAttempts) {
-            onLog(`\nVerify failed, retrying...\n`);
-            continue; // Retry
+            // Jump back to the on_verify_fail phase instead of re-running verify
+            const jumpTarget = taskType.on_verify_fail;
+            const jumpIndex = allPhases.indexOf(jumpTarget);
+            if (jumpIndex >= 0 && jumpIndex < i) {
+              onLog(`\nVerify failed, jumping back to '${jumpTarget}' phase...\n`);
+              // Remove the jump target from completed so it re-runs
+              completedPhaseNames.delete(jumpTarget);
+              i = jumpIndex;
+              // Break out of the attempt loop; the outer while-loop will land on jumpTarget
+              break;
+            } else {
+              onLog(`\nVerify failed, retrying...\n`);
+              continue; // Retry verify if jump target not found
+            }
           }
           if (failed && attempt >= maxAttempts) {
             if (taskType.on_max_retries === 'pause') {
@@ -252,6 +274,7 @@ export async function runJob(ctx: JobContext): Promise<void> {
         }
 
         // Move to next phase
+        i++;
         break;
 
       } catch (err: any) {
@@ -269,7 +292,7 @@ export async function runJob(ctx: JobContext): Promise<void> {
     }
   }
 
-  // All phases complete — move to review
+  // All phases complete -- move to review
   const reviewOutput = phasesCompleted[phasesCompleted.length - 1];
   const reviewResult = {
     filesChanged: 0, // TODO: parse from git diff

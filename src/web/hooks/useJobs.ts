@@ -22,9 +22,11 @@ export function useJobs(projectId: string | null) {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!projectId) return;
-    const data = await getJobs(projectId);
-    setJobs(data);
+    if (!projectId) { setLoading(false); return; }
+    try {
+      const data = await getJobs(projectId);
+      setJobs(data);
+    } catch { /* ignore */ }
     setLoading(false);
   }, [projectId]);
 

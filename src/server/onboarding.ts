@@ -1,4 +1,4 @@
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 interface Check {
   id: string;
@@ -8,9 +8,9 @@ interface Check {
   required: boolean;
 }
 
-function run(cmd: string): { ok: boolean; output: string } {
+function run(cmd: string, args: string[] = []): { ok: boolean; output: string } {
   try {
-    const output = execSync(cmd, { timeout: 5000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
+    const output = execFileSync(cmd, args, { timeout: 5000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }).trim();
     return { ok: true, output };
   } catch {
     return { ok: false, output: '' };
@@ -21,7 +21,7 @@ export function runChecks(localPath?: string): Check[] {
   const checks: Check[] = [];
 
   // Claude Code
-  const claude = run('which claude');
+  const claude = run('which', ['claude']);
   checks.push({
     id: 'claude',
     label: 'Claude Code',
@@ -31,7 +31,7 @@ export function runChecks(localPath?: string): Check[] {
   });
 
   if (claude.ok) {
-    const ver = run('claude --version');
+    const ver = run('claude', ['--version']);
     checks.push({
       id: 'claude-auth',
       label: 'Claude Code authenticated',
@@ -42,7 +42,7 @@ export function runChecks(localPath?: string): Check[] {
   }
 
   // Git
-  const git = run('which git');
+  const git = run('which', ['git']);
   checks.push({
     id: 'git',
     label: 'Git',
@@ -52,8 +52,8 @@ export function runChecks(localPath?: string): Check[] {
   });
 
   if (git.ok) {
-    const name = run('git config user.name');
-    const email = run('git config user.email');
+    const name = run('git', ['config', 'user.name']);
+    const email = run('git', ['config', 'user.email']);
     checks.push({
       id: 'git-config',
       label: 'Git configured (user.name & email)',
@@ -64,7 +64,7 @@ export function runChecks(localPath?: string): Check[] {
   }
 
   // GitHub CLI
-  const gh = run('which gh');
+  const gh = run('which', ['gh']);
   checks.push({
     id: 'gh',
     label: 'GitHub CLI',
@@ -74,7 +74,7 @@ export function runChecks(localPath?: string): Check[] {
   });
 
   if (gh.ok) {
-    const auth = run('gh auth status');
+    const auth = run('gh', ['auth', 'status']);
     checks.push({
       id: 'gh-auth',
       label: 'GitHub CLI authenticated',
@@ -86,7 +86,7 @@ export function runChecks(localPath?: string): Check[] {
 
   // Project git repo
   if (localPath) {
-    const repo = run(`git -C "${localPath}" rev-parse --git-dir`);
+    const repo = run('git', ['-C', localPath, 'rev-parse', '--git-dir']);
     checks.push({
       id: 'git-repo',
       label: 'Project has git repo',

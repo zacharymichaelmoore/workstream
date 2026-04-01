@@ -27,21 +27,28 @@ export function TaskForm({ milestones, onSubmit, onClose }: Props) {
   const [effort, setEffort] = useState('high');
   const [milestoneId, setMilestoneId] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) return;
+    setError('');
     setLoading(true);
-    await onSubmit({
-      title: title.trim(),
-      description: description.trim(),
-      type,
-      mode,
-      effort,
-      milestone_id: milestoneId || null,
-    });
-    setLoading(false);
-    onClose();
+    try {
+      await onSubmit({
+        title: title.trim(),
+        description: description.trim(),
+        type,
+        mode,
+        effort,
+        milestone_id: milestoneId || null,
+      });
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create task');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

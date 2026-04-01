@@ -15,16 +15,18 @@ export function useNotifications(userId: string | undefined) {
 
   const load = useCallback(async () => {
     if (!userId) return;
-    const data = await getNotifications();
-    setNotifications(data);
+    try {
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch { /* ignore */ }
   }, [userId]);
 
   useEffect(() => {
+    if (!userId) return;
     load();
-    // Poll every 10 seconds for new notifications
     const interval = setInterval(load, 10000);
     return () => clearInterval(interval);
-  }, [load]);
+  }, [userId, load]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
