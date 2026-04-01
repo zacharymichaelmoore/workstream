@@ -50,7 +50,7 @@ export default function App() {
 
   // Step 5: No projects yet
   if (projects.projects.length === 0) {
-    return <NewProject onCreate={async (name) => { await projects.createProject(name); }} />;
+    return <NewProject onCreate={async (name, supabaseConfig) => { await projects.createProject(name, supabaseConfig); }} />;
   }
 
   // Step 6: Focus task

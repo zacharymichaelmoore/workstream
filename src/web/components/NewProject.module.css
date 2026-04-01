@@ -16,6 +16,8 @@
   font-size: 16px;
   color: var(--text-2);
   margin-bottom: 36px;
+  text-align: center;
+  max-width: 440px;
 }
 .form {
   width: 100%;
@@ -33,6 +35,7 @@
   font-size: 15px;
   color: var(--text);
   outline: none;
+  width: 100%;
 }
 .input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-bg); }
 .input::placeholder { color: var(--text-4); }
@@ -46,6 +49,157 @@
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
+  width: 100%;
+  max-width: 360px;
 }
 .submit:hover { opacity: 0.85; }
 .submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Setup cards */
+.cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  width: 100%;
+  max-width: 480px;
+  margin-bottom: 28px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 20px;
+  background: var(--white);
+  border: 1.5px solid var(--divider);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.card:hover {
+  border-color: var(--text-4);
+}
+.cardSelected {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-bg);
+}
+.cardIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+.cardSelected .cardIcon {
+  background: var(--blue-bg);
+  color: var(--blue);
+}
+.cardTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+.cardDesc {
+  font-size: 13px;
+  color: var(--text-3);
+  line-height: 1.45;
+}
+
+/* Detail panel (local instructions / cloud fields) */
+.detail {
+  width: 100%;
+  max-width: 480px;
+  margin-bottom: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.detailLabel {
+  font-size: 14px;
+  color: var(--text-2);
+}
+.fieldLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+.codeBlock {
+  padding: 14px 18px;
+  background: var(--text);
+  color: #E5E5E5;
+  border-radius: 8px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* Check connection button */
+.checkBtn {
+  padding: 10px 20px;
+  background: var(--bg-hover);
+  color: var(--text-2);
+  border: 1.5px solid var(--divider);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  align-self: flex-start;
+}
+.checkBtn:hover {
+  border-color: var(--text-4);
+  background: var(--bg-active);
+}
+.checkBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.checkBtnOk {
+  background: var(--green-bg);
+  border-color: var(--green);
+  color: var(--green);
+}
+.checkBtnOk:hover {
+  background: var(--green-bg);
+  border-color: var(--green);
+}
+.checkBtnError {
+  background: var(--red-bg);
+  border-color: var(--red);
+  color: var(--red);
+}
+.checkBtnError:hover {
+  background: var(--red-bg);
+  border-color: var(--red);
+}
+
+/* Back button */
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: none;
+  border: none;
+  color: var(--text-3);
+  font-family: var(--font);
+  font-size: 14px;
+  cursor: pointer;
+  margin-bottom: 24px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.backBtn:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}

@@ -1,11 +1,41 @@
 import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
+import { writeFileSync, readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 
 const supabaseUrl = process.env.SUPABASE_URL || 'http://127.0.0.1:54321';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const admin = createClient(supabaseUrl, supabaseKey);
 
 export const dataRouter = Router();
+
+// Helper: persist supabase config to .env file
+function persistSupabaseConfig(config: { mode: string; url?: string; serviceRoleKey?: string }) {
+  const envPath = resolve(process.cwd(), '.env');
+  let envContent = '';
+  if (existsSync(envPath)) {
+    envContent = readFileSync(envPath, 'utf-8');
+  }
+
+  function setEnvVar(content: string, key: string, value: string): string {
+    const regex = new RegExp(`^${key}=.*$`, 'm');
+    if (regex.test(content)) {
+      return content.replace(regex, `${key}=${value}`);
+    }
+    return content + (content.endsWith('\n') || content === '' ? '' : '\n') + `${key}=${value}\n`;
+  }
+
+  if (config.mode === 'local') {
+    envContent = setEnvVar(envContent, 'SUPABASE_URL', 'http://127.0.0.1:54321');
+    envContent = setEnvVar(envContent, 'SUPABASE_MODE', 'local');
+  } else if (config.mode === 'cloud' && config.url && config.serviceRoleKey) {
+    envContent = setEnvVar(envContent, 'SUPABASE_URL', config.url);
+    envContent = setEnvVar(envContent, 'SUPABASE_SERVICE_ROLE_KEY', config.serviceRoleKey);
+    envContent = setEnvVar(envContent, 'SUPABASE_MODE', 'cloud');
+  }
+
+  writeFileSync(envPath, envContent, 'utf-8');
+}
 
 // Middleware: extract user from token
 function getUserId(req: any): string | null {
@@ -42,7 +72,17 @@ dataRouter.post('/api/projects', async (req, res) => {
   const userId = getUserId(req);
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  const { name } = req.body;
+  const { name, supabase_config } = req.body;
+
+  // Persist supabase connection config if provided
+  if (supabase_config) {
+    try {
+      persistSupabaseConfig(supabase_config);
+    } catch (err: any) {
+      console.warn('Failed to persist supabase config:', err.message);
+    }
+  }
+
   const { data: project, error } = await admin
     .from('projects')
     .insert({ name, created_by: userId })

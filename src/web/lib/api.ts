@@ -93,8 +93,21 @@ export async function getProjects() {
   return apiFetch('/api/projects') as Promise<{ id: string; name: string; role: string }[]>;
 }
 
-export async function createProject(name: string) {
-  return apiFetch('/api/projects', { method: 'POST', body: JSON.stringify({ name }) });
+export type SupabaseConfig = {
+  mode: 'local' | 'cloud';
+  url?: string;
+  serviceRoleKey?: string;
+};
+
+export async function createProject(name: string, supabaseConfig?: SupabaseConfig) {
+  return apiFetch('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name, supabase_config: supabaseConfig }),
+  });
+}
+
+export async function checkHealth(): Promise<{ ok: boolean }> {
+  return apiFetch('/api/health');
 }
 
 // --- Milestones ---

@@ -1,26 +1,159 @@
 import { useState } from 'react';
+import { checkHealth } from '../lib/api';
+import type { SupabaseConfig } from '../lib/api';
 import s from './NewProject.module.css';
 
 interface Props {
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (name: string, supabaseConfig: SupabaseConfig) => Promise<void>;
 }
 
+type SetupMode = 'local' | 'cloud' | null;
+type HealthStatus = 'idle' | 'checking' | 'ok' | 'error';
+
 export function NewProject({ onCreate }: Props) {
+  const [step, setStep] = useState<'setup' | 'name'>('setup');
+  const [mode, setMode] = useState<SetupMode>(null);
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Local mode state
+  const [healthStatus, setHealthStatus] = useState<HealthStatus>('idle');
+
+  // Cloud mode state
+  const [cloudUrl, setCloudUrl] = useState('');
+  const [cloudKey, setCloudKey] = useState('');
+
+  async function handleCheckConnection() {
+    setHealthStatus('checking');
+    try {
+      const result = await checkHealth();
+      setHealthStatus(result.ok ? 'ok' : 'error');
+    } catch {
+      setHealthStatus('error');
+    }
+  }
+
+  function handleContinue() {
+    if (mode === 'cloud' && (!cloudUrl.trim() || !cloudKey.trim())) return;
+    setStep('name');
+  }
+
+  function canContinue(): boolean {
+    if (!mode) return false;
+    if (mode === 'cloud') return cloudUrl.trim() !== '' && cloudKey.trim() !== '';
+    return true;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || !mode) return;
     setLoading(true);
-    await onCreate(name.trim());
+    const config: SupabaseConfig = {
+      mode,
+      ...(mode === 'cloud' ? { url: cloudUrl.trim(), serviceRoleKey: cloudKey.trim() } : {}),
+      ...(mode === 'local' ? { url: 'http://127.0.0.1:54321' } : {}),
+    };
+    await onCreate(name.trim(), config);
     setLoading(false);
+  }
+
+  if (step === 'setup') {
+    return (
+      <div className={s.container}>
+        <h1 className={s.title}>How do you want to store data?</h1>
+        <p className={s.subtitle}>CodeSync uses Supabase for storage. Choose a setup.</p>
+
+        <div className={s.cards}>
+          <button
+            className={`${s.card} ${mode === 'local' ? s.cardSelected : ''}`}
+            onClick={() => setMode('local')}
+            type="button"
+          >
+            <span className={s.cardIcon}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/><path d="M6 10h8M6 13h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </span>
+            <span className={s.cardTitle}>Local (Docker)</span>
+            <span className={s.cardDesc}>Run Supabase on your machine. Good for development.</span>
+          </button>
+
+          <button
+            className={`${s.card} ${mode === 'cloud' ? s.cardSelected : ''}`}
+            onClick={() => setMode('cloud')}
+            type="button"
+          >
+            <span className={s.cardIcon}>
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M5.5 14.5A3.5 3.5 0 015 7.536 5 5 0 0114.63 6.5 4 4 0 0115 14.5H5.5z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>
+            </span>
+            <span className={s.cardTitle}>Supabase Cloud</span>
+            <span className={s.cardDesc}>Connect to a hosted Supabase project. Good for teams.</span>
+          </button>
+        </div>
+
+        {mode === 'local' && (
+          <div className={s.detail}>
+            <p className={s.detailLabel}>Make sure Docker is running, then run:</p>
+            <pre className={s.codeBlock}>npx supabase start && npx supabase db reset</pre>
+            <button
+              className={`${s.checkBtn} ${healthStatus === 'ok' ? s.checkBtnOk : ''} ${healthStatus === 'error' ? s.checkBtnError : ''}`}
+              onClick={handleCheckConnection}
+              disabled={healthStatus === 'checking'}
+              type="button"
+            >
+              {healthStatus === 'idle' && 'Check Connection'}
+              {healthStatus === 'checking' && 'Checking...'}
+              {healthStatus === 'ok' && 'Connected'}
+              {healthStatus === 'error' && 'Connection Failed -- Retry'}
+            </button>
+          </div>
+        )}
+
+        {mode === 'cloud' && (
+          <div className={s.detail}>
+            <label className={s.fieldLabel}>Supabase Project URL</label>
+            <input
+              className={s.input}
+              type="url"
+              placeholder="https://xxxx.supabase.co"
+              value={cloudUrl}
+              onChange={e => setCloudUrl(e.target.value)}
+              autoFocus
+            />
+            <label className={s.fieldLabel}>Service Role Key</label>
+            <input
+              className={s.input}
+              type="password"
+              placeholder="eyJhbGciOiJIUzI1NiIs..."
+              value={cloudKey}
+              onChange={e => setCloudKey(e.target.value)}
+            />
+          </div>
+        )}
+
+        {mode && (
+          <button
+            className={s.submit}
+            onClick={handleContinue}
+            disabled={!canContinue()}
+            type="button"
+          >
+            Continue
+          </button>
+        )}
+      </div>
+    );
   }
 
   return (
     <div className={s.container}>
-      <h1 className={s.title}>Create your first project</h1>
-      <p className={s.subtitle}>A project maps to a codebase on your machine.</p>
+      <button className={s.backBtn} onClick={() => setStep('setup')} type="button">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+        Back
+      </button>
+      <h1 className={s.title}>Name your project</h1>
+      <p className={s.subtitle}>
+        A project maps to a codebase on your machine.
+        {mode === 'local' ? ' Using local Supabase.' : ` Using ${cloudUrl}.`}
+      </p>
       <form className={s.form} onSubmit={handleSubmit}>
         <input
           className={s.input}
