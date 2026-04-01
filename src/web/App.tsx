@@ -3,7 +3,7 @@ import { useAuth } from './hooks/useAuth';
 import { useProjects } from './hooks/useProjects';
 import { useTasks } from './hooks/useTasks';
 import { useMilestones } from './hooks/useMilestones';
-import { signUp, signIn } from './lib/api';
+import { signUp, signIn, runTaskApi } from './lib/api';
 import { OnboardingCheck } from './components/OnboardingCheck';
 import { AuthGate } from './components/AuthGate';
 import { NewProject } from './components/NewProject';
@@ -97,6 +97,7 @@ export default function App() {
             {focusTask ? (
               <FocusView
                 task={{
+                  id: focusTask.id,
                   title: focusTask.title,
                   type: focusTask.type,
                   mode: focusTask.mode,
@@ -106,6 +107,21 @@ export default function App() {
                 reason={`Top of your backlog. ${tasks.backlog.length} tasks remaining.`}
                 next={nextTasks[0]?.title || ''}
                 then={nextTasks[1]?.title || ''}
+                onRun={async (taskId) => {
+                  if (!projects.current?.id || !projects.current?.local_path) {
+                    alert('Set a local folder path for this project first.');
+                    return;
+                  }
+                  try {
+                    await runTaskApi(taskId, projects.current.id, projects.current.local_path);
+                    tasks.reload();
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to start task');
+                  }
+                }}
+                onSkip={async (taskId) => {
+                  await tasks.updateTask(taskId, { position: tasks.backlog.length + 1 });
+                }}
               />
             ) : (
               <EmptyState onAdd={() => setShowTaskForm(true)} />

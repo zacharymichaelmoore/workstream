@@ -1,13 +1,15 @@
 import s from './FocusView.module.css';
 
 interface Props {
-  task: { title: string; type: string; mode: string; effort: string; blocksCount: number };
+  task: { id: string; title: string; type: string; mode: string; effort: string; blocksCount: number };
   reason: string;
   next: string;
   then: string;
+  onRun?: (taskId: string) => void;
+  onSkip?: (taskId: string) => void;
 }
 
-export function FocusView({ task, reason, next, then }: Props) {
+export function FocusView({ task, reason, next, then, onRun, onSkip }: Props) {
   return (
     <section className={s.section}>
       <p className={s.overline}>Now</p>
@@ -16,21 +18,23 @@ export function FocusView({ task, reason, next, then }: Props) {
 
       <div className={s.actions}>
         {task.mode === 'ai' ? (
-          <button className={s.run}>Run</button>
+          <button className={s.run} onClick={() => onRun?.(task.id)}>Run</button>
         ) : (
-          <button className={s.run}>Start</button>
+          <button className={s.run} onClick={() => onRun?.(task.id)}>Start</button>
         )}
-        <button className={s.skip}>Skip</button>
+        <button className={s.skip} onClick={() => onSkip?.(task.id)}>Skip</button>
         <span className={s.meta}>
           {task.type} &middot; {task.effort} &middot; {task.mode}
         </span>
       </div>
 
-      <div className={s.upcoming}>
-        <span className={s.upLabel}>up next</span>
-        <span className={s.upItem}>{next}</span>
-        <span className={s.upItem}>{then}</span>
-      </div>
+      {(next || then) && (
+        <div className={s.upcoming}>
+          <span className={s.upLabel}>up next</span>
+          {next && <span className={s.upItem}>{next}</span>}
+          {then && <span className={s.upItem}>{then}</span>}
+        </div>
+      )}
     </section>
   );
 }
