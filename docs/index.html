@@ -121,6 +121,16 @@ nav .w { display: flex; justify-content: space-between; align-items: center; }
 .feat-d { font-size: 14px; color: var(--text-2); line-height: 1.6; flex: 2; }
 .feat-tag { display: inline-block; margin-top: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; background: rgba(0,0,0,0.04); border-radius: 5px; color: var(--text-2); }
 
+/* === MODES === */
+.modes { padding: 100px 0; border-top: 1px solid var(--divider); }
+.modes h2 {
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  margin-bottom: 56px;
+  line-height: 1.1;
+}
+
 /* === HOW === */
 .how { padding: 100px 0; border-top: 1px solid var(--divider); }
 .how h2 {
@@ -213,6 +223,7 @@ footer a:hover { color: var(--text-2); }
     <div class="logo">CodeSync</div>
     <div class="nav-r">
       <a href="#features">Features</a>
+      <a href="#modes">Deploy</a>
       <a href="#how">Setup</a>
       <a href="https://github.com/ilyador/codesync" class="nav-btn">GitHub</a>
     </div>
@@ -284,7 +295,7 @@ footer a:hover { color: var(--text-2); }
     <div class="feat">
       <span class="feat-n">04</span>
       <div class="feat-t">Git without the footgun</div>
-      <div class="feat-d">AI never touches git. You approve, then pick: commit, commit+push, or branch+PR. Predefined commands only. No YOLO force-pushes to main.</div>
+      <div class="feat-d">Each workstream gets a branch. Each task gets a commit. When the workstream is done, you click "Create PR." No git action choices, no footguns. AI never improvises with your repo.</div>
     </div>
     <div class="feat">
       <span class="feat-n">05</span>
@@ -294,7 +305,7 @@ footer a:hover { color: var(--text-2); }
     <div class="feat">
       <span class="feat-n">06</span>
       <div class="feat-t">Runs anywhere you want</div>
-      <div class="feat-d">Run it locally on your machine and sync to an online database. Or throw the whole thing on a VPS and let AI grind tasks 24/7 while you sleep. Your call.</div>
+      <div class="feat-d">Run it locally and sync to a cloud database. Or throw it on a VPS with local Supabase and let AI grind tasks in isolated worktrees while you sleep.</div>
     </div>
     <div class="feat">
       <span class="feat-n">07</span>
@@ -305,6 +316,22 @@ footer a:hover { color: var(--text-2); }
       <span class="feat-n">08</span>
       <div class="feat-t">MCP server included</div>
       <div class="feat-d">Ask Claude Code "what should I work on?" from your terminal. Create tasks, reply to paused jobs, approve reviews — without opening a browser.<br><span class="feat-tag">9 MCP tools</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="modes" id="modes">
+  <div class="w">
+    <h2><span style="color: var(--text-3)">Two ways to</span> run it</h2>
+    <div class="anti-grid">
+      <div class="anti-item">
+        <div class="anti-title">Local Development</div>
+        <div class="anti-desc">Run on your machine, sync through online Supabase. Each workstream creates a git branch. Each task auto-commits. When done, create a PR. Good for solo developers who want AI as a coding partner.</div>
+      </div>
+      <div class="anti-item">
+        <div class="anti-title">VPS / Server</div>
+        <div class="anti-desc">Run on a VPS with local Supabase. Each workstream gets its own git worktree. AI grinds tasks 24/7 while you sleep. Same git flow — branches, commits, PRs. Good for teams and background automation.</div>
+      </div>
     </div>
   </div>
 </section>
