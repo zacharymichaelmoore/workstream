@@ -21,8 +21,8 @@
   --divider: rgba(0,0,0,0.07);
   --priority-critical: #C07030;
   --priority-critical-bg: rgba(192, 112, 48, 0.04);
-  --priority-upcoming: #A09030;
-  --priority-upcoming-bg: rgba(160, 144, 48, 0.03);
+  --priority-upcoming: #B8A215;
+  --priority-upcoming-bg: rgba(200, 180, 20, 0.045);
   --font: 'Instrument Sans', system-ui, -apple-system, sans-serif;
 }
 

@@ -167,6 +167,32 @@
   color: var(--green);
 }
 
+.statusStrip--reviewing {
+  background: rgba(120, 80, 160, 0.04);
+}
+.statusStrip--reviewing .statusStripFill {
+  background: rgba(120, 80, 160, 0.08);
+  animation: reviewPulse 2s ease-in-out infinite;
+}
+.statusStrip--reviewing .statusStripLabel {
+  color: #7850A0;
+}
+
+@keyframes reviewPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.statusStrip--review-failed {
+  background: rgba(185, 28, 28, 0.03);
+}
+.statusStrip--review-failed .statusStripFill {
+  background: rgba(185, 28, 28, 0.06);
+}
+.statusStrip--review-failed .statusStripLabel {
+  color: var(--red);
+}
+
 .statusStrip--failed {
   background: rgba(185, 28, 28, 0.03);
 }
@@ -314,4 +340,40 @@
   font-size: 13px;
   font-weight: 600;
   border-top: 1px solid rgba(22, 163, 74, 0.12);
+}
+
+.reviewingBanner {
+  background: rgba(120, 80, 160, 0.05);
+  color: #7850A0;
+  border-top-color: rgba(120, 80, 160, 0.12);
+}
+
+.reviewingLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reviewingDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7850A0;
+  animation: reviewPulse 2s ease-in-out infinite;
+}
+
+.failedBanner {
+  background: var(--red-bg);
+  color: var(--red);
+  border-top-color: rgba(185, 28, 28, 0.12);
+}
+
+.prLink {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--blue);
+  text-decoration: none;
+}
+.prLink:hover {
+  text-decoration: underline;
 }

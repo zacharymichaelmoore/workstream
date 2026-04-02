@@ -23,6 +23,7 @@ interface Workstream {
   name: string;
   status: string;
   position: number;
+  pr_url?: string | null;
 }
 
 interface WorkstreamColumnProps {
@@ -100,6 +101,8 @@ export function WorkstreamColumn({
   const wsStatus = useMemo(() => {
     if (isBacklog) return null;
     const dbStatus = workstream?.status;
+    if (dbStatus === 'reviewing') return 'reviewing' as const;
+    if (dbStatus === 'review_failed') return 'review failed' as const;
     if (dbStatus === 'complete') return 'done' as const;
     if (dbStatus === 'archived') return 'merged' as const;
     if (totalTasks === 0) return 'open' as const;
@@ -267,8 +270,8 @@ export function WorkstreamColumn({
             </button>
           )}
 
-          {/* Status strip inline after name (non-backlog with tasks) */}
-          {wsStatus && totalTasks > 0 && (
+          {/* Status strip: only after work starts (not 'open') */}
+          {wsStatus && wsStatus !== 'open' && totalTasks > 0 && (
             <div className={`${s.statusStrip} ${s[`statusStrip--${wsStatus.replace(' ', '-')}`]}`}>
               <div
                 className={s.statusStripFill}
@@ -339,6 +342,7 @@ export function WorkstreamColumn({
                 task={task}
                 job={job}
                 canRunAi={canRunAi}
+                showPriority={isBacklog}
                 isExpanded={expandedId === task.id}
                 onToggleExpand={() => setExpandedId(expandedId === task.id ? null : task.id)}
                 onRun={onRunTask}
@@ -361,11 +365,40 @@ export function WorkstreamColumn({
         })}
       </div>
 
-      {allDone && !isBacklog && (
+      {allDone && !isBacklog && wsStatus === 'pending review' && (
         <div className={s.completeBanner}>
-          <span>&#10003; Workstream complete</span>
+          <span>&#10003; All tasks complete</span>
           {onCreatePr && (
-            <button className="btn btnPrimary btnSm" onClick={onCreatePr}>Create PR</button>
+            <button className="btn btnPrimary btnSm" onClick={onCreatePr}>Review &amp; Create PR</button>
+          )}
+        </div>
+      )}
+
+      {wsStatus === 'reviewing' && (
+        <div className={`${s.completeBanner} ${s.reviewingBanner}`}>
+          <span className={s.reviewingLabel}>
+            <span className={s.reviewingDot} />
+            Reviewing code...
+          </span>
+        </div>
+      )}
+
+      {wsStatus === 'review failed' && (
+        <div className={`${s.completeBanner} ${s.failedBanner}`}>
+          <span>Review failed</span>
+          {onCreatePr && (
+            <button className="btn btnDanger btnSm" onClick={onCreatePr}>Retry</button>
+          )}
+        </div>
+      )}
+
+      {(wsStatus === 'done' || wsStatus === 'merged') && (
+        <div className={s.completeBanner}>
+          <span>&#10003; PR created</span>
+          {workstream?.pr_url && (
+            <a href={workstream.pr_url} target="_blank" rel="noopener noreferrer" className={s.prLink}>
+              View PR
+            </a>
           )}
         </div>
       )}

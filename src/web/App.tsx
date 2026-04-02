@@ -7,7 +7,7 @@ import { useWorkstreams } from './hooks/useWorkstreams';
 import { useMembers } from './hooks/useMembers';
 import { useNotifications } from './hooks/useNotifications';
 import { useWebNotifications } from './hooks/useWebNotifications';
-import { signUp, signIn, signOut, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, updateTask, createWorkstreamPr } from './lib/api';
+import { signUp, signIn, signOut, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, updateTask, reviewAndCreatePr } from './lib/api';
 import { OnboardingCheck } from './components/OnboardingCheck';
 import { AuthGate } from './components/AuthGate';
 import { NewProject } from './components/NewProject';
@@ -393,12 +393,10 @@ export default function App() {
         }}
         onCreatePr={async (workstreamId) => {
           try {
-            const result = await createWorkstreamPr(workstreamId, projects.current?.local_path || '');
-            if (result.prUrl) {
-              window.open(result.prUrl, '_blank');
-            }
+            await reviewAndCreatePr(workstreamId, projects.current?.local_path || '');
+            // Review runs in background — status updates via SSE
           } catch (err: any) {
-            alert(err.message || 'Failed to create PR');
+            alert(err.message || 'Failed to start review');
           }
         }}
       />

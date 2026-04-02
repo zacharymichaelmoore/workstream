@@ -83,6 +83,7 @@
   overflow: hidden;
 }
 .previewDesc p { margin: 0; }
+.previewDesc img { display: none; }
 .previewDesc code {
   font-size: 12px;
   padding: 1px 4px;
@@ -456,20 +457,18 @@
 }
 .images {
   display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px 0;
 }
-.imageThumb {
-  width: 56px;
-  height: 42px;
-  object-fit: cover;
-  border-radius: 5px;
+.imageFull {
+  width: 100%;
+  border-radius: 6px;
   border: 1px solid var(--divider);
   cursor: pointer;
   transition: border-color 0.15s;
 }
-.imageThumb:hover {
+.imageFull:hover {
   border-color: var(--blue);
 }
 

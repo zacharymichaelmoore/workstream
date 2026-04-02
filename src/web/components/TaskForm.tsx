@@ -88,7 +88,7 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
   const [customPipeline, setCustomPipeline] = useState('feature');
   const [isCustomType, setIsCustomType] = useState(editTypeIsCustom);
   const [mode, setMode] = useState(editTask?.mode || 'ai');
-  const [effort, setEffort] = useState(editTask?.effort || 'high');
+  const [effort, setEffort] = useState(editTask?.effort || 'max');
   const [workstreamId, setWorkstreamId] = useState(editTask?.workstream_id || defaultWorkstreamId || '');
   const [assignee, setAssignee] = useState(editTask?.assignee || '');
   const [multiagent, setMultiagent] = useState(editTask?.multiagent || 'auto');
@@ -379,6 +379,7 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
                 const val = e.target.value;
                 setAssignee(val);
                 setMode(val ? 'human' : 'ai');
+                if (val) setAutoContinue(false);
               }}>
                 <option value="">AI</option>
                 {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
@@ -404,21 +405,23 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
                 </select>
               </div>
             )}
-            <div className={s.field}>
-              <label className={s.label}>Priority</label>
-              <div className={s.segmented}>
-                {(['critical', 'upcoming', 'backlog'] as const).map(p => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={`${s.segmentedBtn} ${priority === p ? s.segmentedActive : ''}`}
-                    onClick={() => setPriority(p)}
-                  >
-                    {p.charAt(0).toUpperCase() + p.slice(1)}
-                  </button>
-                ))}
+            {!workstreamId && (
+              <div className={s.field}>
+                <label className={s.label}>Priority</label>
+                <div className={s.segmented}>
+                  {(['critical', 'upcoming', 'backlog'] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      className={`${s.segmentedBtn} ${priority === p ? s.segmentedActive : ''}`}
+                      onClick={() => setPriority(p)}
+                    >
+                      {p.charAt(0).toUpperCase() + p.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className={s.checkboxes}>
@@ -435,6 +438,7 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
                 type="checkbox"
                 checked={autoContinue}
                 onChange={e => setAutoContinue(e.target.checked)}
+                disabled={!!assignee}
               />
               <span>Continue automatically</span>
             </label>

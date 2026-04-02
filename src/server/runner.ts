@@ -349,7 +349,7 @@ function legacyReviewCheck(output: string): boolean {
 }
 
 /** Shared env for spawned claude processes. Ensures PATH includes ~/.local/bin for systemd. */
-const claudeEnv = {
+export const claudeEnv = {
   ...process.env,
   TERM: 'dumb',
   PATH: `${process.env.HOME}/.local/bin:${process.env.PATH}`,

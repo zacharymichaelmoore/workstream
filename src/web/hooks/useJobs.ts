@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getJobs, subscribeToChanges } from '../lib/api';
+import { getJobs } from '../lib/api';
+import { subscribeProjectEvents } from './useProjectEvents';
 
 interface Job {
   id: string;
@@ -33,7 +34,7 @@ export function useJobs(projectId: string | null) {
   useEffect(() => {
     load();
     if (!projectId) return;
-    const unsub = subscribeToChanges(projectId, (event) => {
+    const unsub = subscribeProjectEvents(projectId, (event) => {
       if (event.type === 'job_changed' && event.job) {
         setJobs(prev => {
           const idx = prev.findIndex(j => j.id === event.job.id);
@@ -46,10 +47,10 @@ export function useJobs(projectId: string | null) {
         });
       } else if (event.type === 'job_deleted' && event.job) {
         setJobs(prev => prev.filter(j => j.id !== event.job.id));
-      } else {
-        // full_sync fallback or unknown event — reload
+      } else if (event.type === 'full_sync') {
         load();
       }
+      // Ignore other event types (task_changed, workstream_changed, etc.)
     });
     return unsub;
   }, [projectId, load]);

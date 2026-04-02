@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { Bot, InlineKeyboard } from 'grammy';
 import { execFile } from 'child_process';
 import { supabase } from './supabase.js';
+import { claudeEnv } from './runner.js';
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -23,7 +24,7 @@ async function getLinkedProject(chatId: number) {
   const { data } = await supabase
     .from('bot_chats')
     .select('project_id')
-    .eq('chat_id', String(chatId))
+    .eq('chat_id', chatId)
     .single();
   return data?.project_id as string | undefined;
 }
@@ -89,7 +90,7 @@ function askClaude(systemPrompt: string, userMessage: string): Promise<string> {
     const proc = execFile('claude', ['-p', '--output-format', 'text', '--max-turns', '3'], {
       timeout: 120000,
       maxBuffer: 1024 * 1024,
-      env: { ...process.env, PATH: `${process.env.HOME}/.local/bin:${process.env.PATH}` },
+      env: claudeEnv,
     }, (err, stdout) => {
       if (err) reject(err);
       else resolve(stdout.trim());
@@ -229,7 +230,7 @@ bot.on('callback_query:data', async (ctx) => {
   const { data: project } = await supabase.from('projects').select('name').eq('id', projectId).single();
 
   await supabase.from('bot_chats').upsert(
-    { chat_id: String(ctx.chat!.id), project_id: projectId },
+    { chat_id: ctx.chat!.id, project_id: projectId },
     { onConflict: 'chat_id' },
   );
 
@@ -239,10 +240,23 @@ bot.on('callback_query:data', async (ctx) => {
 
 bot.on('message:text', async (ctx) => {
   const chatId = ctx.chat.id;
-  const userMsg = ctx.message.text;
+  let userMsg = ctx.message.text;
 
   // Ignore commands handled above
   if (userMsg.startsWith('/')) return;
+
+  // In groups, only respond if the bot is mentioned or replied to
+  const isGroup = ctx.chat.type === 'group' || ctx.chat.type === 'supergroup';
+  if (isGroup) {
+    const botInfo = await bot.api.getMe();
+    const botUsername = botInfo.username;
+    const mentioned = botUsername && userMsg.includes(`@${botUsername}`);
+    const repliedToBot = ctx.message.reply_to_message?.from?.id === botInfo.id;
+    if (!mentioned && !repliedToBot) return;
+    // Strip the @mention from the message
+    if (botUsername) userMsg = userMsg.replace(new RegExp(`@${botUsername}`, 'gi'), '').trim();
+    if (!userMsg) return;
+  }
 
   const projectId = await getLinkedProject(chatId);
   if (!projectId) {

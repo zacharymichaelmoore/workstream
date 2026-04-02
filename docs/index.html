@@ -262,7 +262,7 @@ footer a:hover { color: var(--text-2); }
       <div class="anti-item">
         <div class="anti-label">Priority Levels</div>
         <div class="anti-title">P0 P1 P2 P3 P4</div>
-        <div class="anti-desc">It's a list. The top item is the most important. Drag it. This technology has existed since paper was invented.</div>
+        <div class="anti-desc">Three options: critical, upcoming, or backlog. Drag to reorder within each. No spreadsheet of severity matrices that nobody reads.</div>
       </div>
       <div class="anti-item">
         <div class="anti-label">Velocity Charts</div>
@@ -295,7 +295,7 @@ footer a:hover { color: var(--text-2); }
     <div class="feat">
       <span class="feat-n">04</span>
       <div class="feat-t">Git without the footgun</div>
-      <div class="feat-d">Each workstream gets its own git worktree — isolated from main, isolated from each other. Each task auto-commits on completion. When the workstream is done, click "Create PR." No git choices to make. It's all automatic. AI never improvises with your repo.</div>
+      <div class="feat-d">Each workstream gets its own git worktree &mdash; isolated from main, isolated from each other. Each task auto-commits on completion. When the workstream is done, click "Create PR." No git choices to make. It's all automatic. AI never improvises with your repo.</div>
     </div>
     <div class="feat">
       <span class="feat-n">05</span>
@@ -304,18 +304,43 @@ footer a:hover { color: var(--text-2); }
     </div>
     <div class="feat">
       <span class="feat-n">06</span>
-      <div class="feat-t">Runs anywhere you want</div>
-      <div class="feat-d">Run it locally and sync to a cloud database. Or throw it on a VPS with local Supabase and let AI grind tasks in isolated worktrees while you sleep.</div>
+      <div class="feat-t">Skills &amp; image context</div>
+      <div class="feat-d">Type <code>/skillname</code> in a task description to inject Claude Code skills into the AI prompt, with autocomplete. Drag-drop screenshots, designs, or error captures &mdash; they're passed directly to Claude as visual context.</div>
     </div>
     <div class="feat">
       <span class="feat-n">07</span>
-      <div class="feat-t">Human tasks exist too</div>
-      <div class="feat-d">Not everything needs AI. Design reviews, meetings, manual QA — toggle to human mode. It's just a checkbox, not a separate product.</div>
+      <div class="feat-t">Team roles that make sense</div>
+      <div class="feat-d">Three roles: admin, dev, manager. Managers can create tasks and review work but can't trigger AI execution. Invite people by email &mdash; accounts are created automatically if they don't have one yet.</div>
     </div>
     <div class="feat">
       <span class="feat-n">08</span>
-      <div class="feat-t">MCP server included</div>
-      <div class="feat-d">Ask Claude Code "what should I work on?" from your terminal. Create tasks, reply to paused jobs, approve reviews — without opening a browser.<br><span class="feat-tag">9 MCP tools</span></div>
+      <div class="feat-t">Realtime everything</div>
+      <div class="feat-d">Live job logs stream to your browser as Claude works. Task and job status sync instantly across team members via SSE and Supabase Realtime. Web push notifications when tasks complete, fail, or need input.</div>
+    </div>
+    <div class="feat">
+      <span class="feat-n">09</span>
+      <div class="feat-t">Comments &amp; @mentions</div>
+      <div class="feat-d">Per-task comment threads with @mention notifications. Discuss work inline without leaving the board. Comments are for humans &mdash; AI reads the task description, not the thread.</div>
+    </div>
+    <div class="feat">
+      <span class="feat-n">10</span>
+      <div class="feat-t">Human tasks exist too</div>
+      <div class="feat-d">Not everything needs AI. Design reviews, meetings, manual QA &mdash; assign to a team member. It's a toggle, not a separate product.</div>
+    </div>
+    <div class="feat">
+      <span class="feat-n">11</span>
+      <div class="feat-t">Telegram bot</div>
+      <div class="feat-d">Create tasks, check project status, and get summaries from Telegram. Link a chat to a project and talk to it in plain English. Claude interprets and acts.</div>
+    </div>
+    <div class="feat">
+      <span class="feat-n">12</span>
+      <div class="feat-t">MCP server &amp; CLI</div>
+      <div class="feat-d">Ask Claude Code "what should I work on?" from your terminal. Create tasks, reply to paused jobs, approve reviews &mdash; without opening a browser.<br><span class="feat-tag">9 MCP tools</span></div>
+    </div>
+    <div class="feat">
+      <span class="feat-n">13</span>
+      <div class="feat-t">Runs anywhere you want</div>
+      <div class="feat-d">Run it locally and sync to a cloud database. Or throw it on a VPS with local Supabase and let AI grind tasks in isolated worktrees while you sleep. Daily DB backups with a single script.</div>
     </div>
   </div>
 </section>

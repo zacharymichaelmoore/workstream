@@ -8,6 +8,14 @@ import { queueNextWorkstreamTask } from '../auto-continue.js';
 
 export const dataRouter = Router();
 
+// Helper: derive display name + initials from an email address
+function deriveNameFromEmail(email: string): { name: string; initials: string } {
+  const name = email.split('@')[0];
+  const parts = name.split(/[.\-_]/);
+  const initials = (parts[0][0] + (parts[parts.length - 1]?.[0] || '')).toUpperCase();
+  return { name, initials };
+}
+
 // Helper: persist supabase config to .env file
 function persistSupabaseConfig(config: { mode: string; url?: string; serviceRoleKey?: string }) {
   const envPath = resolve(process.cwd(), '.env');
@@ -118,6 +126,20 @@ dataRouter.get('/api/members', requireAuth, async (req, res) => {
     initials: d.profiles?.initials || '??',
     role: d.role,
   }));
+
+  // Include pending invites
+  const { data: invites } = await supabase
+    .from('project_invites')
+    .select('id, email, role')
+    .eq('project_id', projectId);
+
+  for (const inv of invites || []) {
+    const name = inv.email.split('@')[0];
+    const parts = name.split(/[.\-_]/);
+    const initials = (parts[0][0] + (parts[parts.length - 1]?.[0] || '')).toUpperCase();
+    members.push({ id: inv.id, name, email: inv.email, initials, role: inv.role, pending: true });
+  }
+
   res.json(members);
 });
 
@@ -220,7 +242,7 @@ dataRouter.post('/api/tasks', requireAuth, async (req, res) => {
       description: description || '',
       type: type || 'feature',
       mode: mode || 'ai',
-      effort: effort || 'high',
+      effort: effort || 'max',
       multiagent: multiagent || 'auto',
       assignee: assignee || null,
       auto_continue: auto_continue !== undefined ? auto_continue : true,
@@ -620,50 +642,50 @@ dataRouter.post('/api/projects/:id/invite', requireAuth, async (req, res) => {
   }
 
   // Look up profile by email
-  let { data: profile } = await supabase
+  const { data: profile } = await supabase
     .from('profiles')
     .select('id, name, email, initials')
     .eq('email', email)
     .single();
 
-  // If no account exists, create one via admin API (sends invite email)
-  if (!profile) {
-    const name = email.split('@')[0];
-    const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
-      email,
-      user_metadata: { name },
-      email_confirm: true,
-    });
-    if (createErr) return res.status(400).json({ error: `Could not invite user: ${createErr.message}` });
-
-    // The handle_new_user trigger creates the profile, but fetch it to be safe
-    const { data: newProfile } = await supabase
-      .from('profiles')
-      .select('id, name, email, initials')
-      .eq('id', newUser.user.id)
+  if (profile) {
+    // User already has an account — add directly to project_members
+    const { data: existing } = await supabase
+      .from('project_members')
+      .select('user_id')
+      .eq('project_id', projectId)
+      .eq('user_id', profile.id)
       .single();
-    if (!newProfile) return res.status(500).json({ error: 'Account created but profile not found' });
-    profile = newProfile;
+    if (existing) return res.status(400).json({ error: 'User is already a member of this project' });
+
+    const { data: member, error } = await supabase
+      .from('project_members')
+      .insert({ project_id: projectId, user_id: profile.id, role })
+      .select()
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+
+    res.json({ ok: true, member: { ...member, name: profile.name, email: profile.email, initials: profile.initials } });
+  } else {
+    // User doesn't have an account yet — store as pending invite
+    const { data: existingInvite } = await supabase
+      .from('project_invites')
+      .select('id')
+      .eq('project_id', projectId)
+      .eq('email', email)
+      .single();
+    if (existingInvite) return res.status(400).json({ error: 'This email has already been invited' });
+
+    const { data: invite, error } = await supabase
+      .from('project_invites')
+      .insert({ project_id: projectId, email, role, invited_by: userId })
+      .select()
+      .single();
+    if (error) return res.status(400).json({ error: error.message });
+
+    const { name, initials } = deriveNameFromEmail(email);
+    res.json({ ok: true, member: { id: invite.id, name, email, initials, role, pending: true } });
   }
-
-  // Check not already a member
-  const { data: existing } = await supabase
-    .from('project_members')
-    .select('user_id')
-    .eq('project_id', projectId)
-    .eq('user_id', profile.id)
-    .single();
-  if (existing) return res.status(400).json({ error: 'User is already a member of this project' });
-
-  // Add to project_members
-  const { data: member, error } = await supabase
-    .from('project_members')
-    .insert({ project_id: projectId, user_id: profile.id, role })
-    .select()
-    .single();
-  if (error) return res.status(400).json({ error: error.message });
-
-  res.json({ ok: true, member: { ...member, name: profile.name, email: profile.email, initials: profile.initials } });
 });
 
 dataRouter.delete('/api/projects/:id/members/:userId', requireAuth, async (req, res) => {
@@ -687,12 +709,23 @@ dataRouter.delete('/api/projects/:id/members/:userId', requireAuth, async (req, 
     return res.status(403).json({ error: 'Only project admins can remove members' });
   }
 
-  const { error } = await supabase
+  // Try removing from project_members first
+  const { data: deleted } = await supabase
     .from('project_members')
     .delete()
     .eq('project_id', projectId)
-    .eq('user_id', targetUserId);
-  if (error) return res.status(400).json({ error: error.message });
+    .eq('user_id', targetUserId)
+    .select();
+
+  if (!deleted || deleted.length === 0) {
+    // Not a member — try removing a pending invite (targetUserId is the invite id)
+    const { error: invErr } = await supabase
+      .from('project_invites')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('id', targetUserId);
+    if (invErr) return res.status(400).json({ error: invErr.message });
+  }
 
   res.json({ ok: true });
 });
@@ -700,10 +733,16 @@ dataRouter.delete('/api/projects/:id/members/:userId', requireAuth, async (req, 
 dataRouter.get('/api/projects/:id/members', requireAuth, async (req, res) => {
   const projectId = req.params.id;
 
-  const { data } = await supabase
-    .from('project_members')
-    .select('user_id, role, profiles(id, name, email, initials)')
-    .eq('project_id', projectId);
+  const [{ data }, { data: invites }] = await Promise.all([
+    supabase
+      .from('project_members')
+      .select('user_id, role, profiles(id, name, email, initials)')
+      .eq('project_id', projectId),
+    supabase
+      .from('project_invites')
+      .select('id, email, role')
+      .eq('project_id', projectId),
+  ]);
 
   const members = (data || []).map((d: any) => ({
     id: d.user_id,
@@ -712,6 +751,14 @@ dataRouter.get('/api/projects/:id/members', requireAuth, async (req, res) => {
     initials: d.profiles?.initials || '??',
     role: d.role,
   }));
+
+  // Include pending invites
+
+  for (const inv of invites || []) {
+    const { name, initials } = deriveNameFromEmail(inv.email);
+    members.push({ id: inv.id, name, email: inv.email, initials, role: inv.role, pending: true });
+  }
+
   res.json(members);
 });
 
@@ -747,6 +794,14 @@ supabase.channel('db-changes')
       job: record,
     });
   })
+  .on('postgres_changes', { event: '*', schema: 'public', table: 'workstreams' }, (payload) => {
+    const record = (payload.new as any) || (payload.old as any);
+    if (!record?.project_id) return;
+    broadcast(record.project_id, {
+      type: 'workstream_changed',
+      workstream: record,
+    });
+  })
   .subscribe((status) => {
     if (status === 'SUBSCRIBED') {
       console.log('[realtime] Subscribed to tasks + jobs changes');
@@ -765,19 +820,26 @@ function startPollingFallback() {
   setInterval(async () => {
     for (const [projectId, clients] of changeListeners) {
       if (clients.size === 0) { changeListeners.delete(projectId); continue; }
-      const { data: tasks } = await supabase
-        .from('tasks')
-        .select('id, status, position, workstream_id')
-        .eq('project_id', projectId)
-        .order('position');
-      const { data: jobs } = await supabase
-        .from('jobs')
-        .select('id, status, current_phase, attempt')
-        .eq('project_id', projectId)
-        .order('started_at', { ascending: false })
-        .limit(10);
+      const [{ data: tasks }, { data: jobs }, { data: workstreams }] = await Promise.all([
+        supabase
+          .from('tasks')
+          .select('id, status, position, workstream_id')
+          .eq('project_id', projectId)
+          .order('position'),
+        supabase
+          .from('jobs')
+          .select('id, status, current_phase, attempt')
+          .eq('project_id', projectId)
+          .order('started_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('workstreams')
+          .select('id, name, status, position, pr_url')
+          .eq('project_id', projectId)
+          .order('position'),
+      ]);
       for (const send of clients) {
-        send({ type: 'full_sync', tasks: tasks || [], jobs: jobs || [] });
+        send({ type: 'full_sync', tasks: tasks || [], jobs: jobs || [], workstreams: workstreams || [] });
       }
     }
   }, 3000);

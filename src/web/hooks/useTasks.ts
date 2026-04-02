@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getTasks, createTask as apiCreateTask, updateTask as apiUpdateTask, deleteTask as apiDeleteTask, subscribeToChanges } from '../lib/api';
+import { getTasks, createTask as apiCreateTask, updateTask as apiUpdateTask, deleteTask as apiDeleteTask } from '../lib/api';
+import { subscribeProjectEvents } from './useProjectEvents';
 
 interface Task {
   id: string;
@@ -44,7 +45,7 @@ export function useTasks(projectId: string | null) {
   useEffect(() => {
     load();
     if (!projectId) return;
-    const unsub = subscribeToChanges(projectId, (event) => {
+    const unsub = subscribeProjectEvents(projectId, (event) => {
       if (event.type === 'task_changed' && event.task) {
         setTasks(prev => {
           const idx = prev.findIndex(t => t.id === event.task.id);
@@ -57,10 +58,10 @@ export function useTasks(projectId: string | null) {
         });
       } else if (event.type === 'task_deleted' && event.task) {
         setTasks(prev => prev.filter(t => t.id !== event.task.id));
-      } else {
-        // full_sync fallback or unknown event — reload
+      } else if (event.type === 'full_sync') {
         load();
       }
+      // Ignore other event types (job_changed, workstream_changed, etc.)
     });
     return unsub;
   }, [projectId, load]);

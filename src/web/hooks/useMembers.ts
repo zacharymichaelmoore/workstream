@@ -6,6 +6,8 @@ export interface Member {
   name: string;
   initials: string;
   role: string;
+  email?: string;
+  pending?: boolean;
 }
 
 export function useMembers(projectId: string | null) {

@@ -44,6 +44,7 @@ interface TaskCardProps {
   onDragEnd?: () => void;
   isDragging?: boolean;
   dragDisabled?: boolean;
+  showPriority?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -75,6 +76,7 @@ export function TaskCard({
   onDragEnd,
   isDragging,
   dragDisabled,
+  showPriority,
 }: TaskCardProps) {
   const jobStatus = job?.status;
   const isActive = jobStatus === 'queued' || jobStatus === 'running' || jobStatus === 'paused' || jobStatus === 'review';
@@ -86,13 +88,14 @@ export function TaskCard({
     : isHumanWaiting ? s.statusPaused
     : taskDone ? s.statusDone : '';
 
-  // Priority: background tint always, border only when no active status border
+  // Priority visuals controlled by parent (backlog shows priority, workstreams don't)
   const hasStatusBorder = !!statusClass;
-  const priorityBgClass = task.priority === 'critical' ? s.priorityCriticalBg
-    : task.priority === 'upcoming' ? s.priorityUpcomingBg
+  const priorityVisible = showPriority && !hasStatusBorder;
+  const priorityBgClass = showPriority && task.priority === 'critical' ? s.priorityCriticalBg
+    : showPriority && task.priority === 'upcoming' ? s.priorityUpcomingBg
     : '';
-  const priorityBorderClass = !hasStatusBorder && task.priority === 'critical' ? s.priorityCriticalBorder
-    : !hasStatusBorder && task.priority === 'upcoming' ? s.priorityUpcomingBorder
+  const priorityBorderClass = priorityVisible && task.priority === 'critical' ? s.priorityCriticalBorder
+    : priorityVisible && task.priority === 'upcoming' ? s.priorityUpcomingBorder
     : '';
 
   const dotClass = jobStatus
@@ -284,21 +287,12 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Preview: description + image thumbnails (visible when collapsed and NOT active) */}
-      {!isActive && !isHumanWaiting && !isExpanded && (task.description || (task.images && task.images.length > 0)) && (
+      {/* Preview: description only (visible when collapsed and NOT active) */}
+      {!isActive && !isHumanWaiting && !isExpanded && task.description && (
         <div className={s.preview}>
-          {task.description && (
-            <div className={s.previewDesc}>
-              <Markdown>{task.description}</Markdown>
-            </div>
-          )}
-          {task.images && task.images.length > 0 && (
-            <div className={s.previewImages}>
-              {task.images.slice(0, 5).map((url) => (
-                <img key={url} src={url} alt="" className={s.previewThumb} />
-              ))}
-            </div>
-          )}
+          <div className={s.previewDesc}>
+            <Markdown>{task.description}</Markdown>
+          </div>
         </div>
       )}
 
@@ -391,7 +385,7 @@ function IdleDetail({
         <div className={s.images}>
           {task.images.map((url, i) => (
             <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-              <img src={url} alt={`Attachment ${i + 1}`} className={s.imageThumb} />
+              <img src={url} alt={`Attachment ${i + 1}`} className={s.imageFull} />
             </a>
           ))}
         </div>

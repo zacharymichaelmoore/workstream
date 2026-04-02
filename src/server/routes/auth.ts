@@ -36,7 +36,30 @@ authRouter.post('/api/auth/signup', async (req, res) => {
     password,
     options: { data: { name: name.trim() } },
   });
-  if (error) return res.status(400).json({ error: error.message });
+
+  // Handle ghost accounts created by old invite flow
+  if (error || (!data.session && data.user)) {
+    // Check if this is a ghost user (never signed in)
+    const { data: { users } } = await admin.auth.admin.listUsers();
+    const ghost = users?.find((u: any) => u.email === email && !u.last_sign_in_at);
+    if (ghost) {
+      // Claim the ghost account: set password + name, then sign in
+      await admin.auth.admin.updateUser(ghost.id, {
+        password,
+        user_metadata: { name: name.trim() },
+      });
+      // Update profile name/initials
+      const parts = name.trim().split(/\s+/);
+      const initials = (parts[0][0] + (parts[parts.length - 1]?.[0] || '')).toUpperCase();
+      await admin.from('profiles').update({ name: name.trim(), initials }).eq('id', ghost.id);
+
+      const { data: signInData, error: signInErr } = await admin.auth.signInWithPassword({ email, password });
+      if (signInErr) return res.status(400).json({ error: signInErr.message });
+      return res.json({ user: signInData.user, session: signInData.session });
+    }
+    if (error) return res.status(400).json({ error: error.message });
+  }
+
   res.json({
     user: data.user,
     session: data.session,
