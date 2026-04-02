@@ -147,7 +147,7 @@ export async function checkHealth(): Promise<{ ok: boolean }> {
 
 // --- Members ---
 export async function getMembers(projectId: string) {
-  return apiFetch(`/api/members?project_id=${projectId}`) as Promise<{ id: string; name: string; initials: string; role: string }[]>;
+  return apiFetch(`/api/members?project_id=${projectId}`) as Promise<{ id: string; name: string; initials: string; role: string; email?: string; pending?: boolean }[]>;
 }
 
 // --- Workstreams ---
