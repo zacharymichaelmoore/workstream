@@ -17,10 +17,12 @@
 ## Two Ways to Run
 
 ### Local Development
-Run CodeSync on your machine, sync through an online Supabase instance. Each workstream creates a git branch. Good for solo developers.
+Run CodeSync on your machine, sync through an online Supabase instance. Good for solo developers who want AI as a coding partner.
 
 ### VPS / Server
-Run CodeSync on a VPS with local Supabase. Each workstream gets its own git worktree at `.worktrees/<name>`. AI can grind tasks 24/7 while you sleep. Good for teams and background automation.
+Run CodeSync on a VPS with local Supabase. AI grinds tasks 24/7 while you sleep. Good for teams and background automation.
+
+Each workstream gets its own git worktree at `.worktrees/<name>`, so your main checkout stays clean and multiple workstreams can run concurrently without conflicts.
 
 ## Features
 
@@ -29,7 +31,7 @@ Run CodeSync on a VPS with local Supabase. Each workstream gets its own git work
 - **Pause & resume** — jobs pause when Claude has a question, you answer inline
 - **Auto-revert** — git checkpoint before each task, auto-revert on failure
 - **Git integration** — each task = commit, each workstream = branch, completion = PR
-- **Worktree isolation** — VPS mode runs each workstream in its own git worktree
+- **Worktree isolation** — each workstream runs in its own git worktree
 - **Human tasks** — toggle to human mode for design reviews, manual QA, etc.
 - **MCP server** — `project_focus`, `task_create`, `task_update`, `job_reply`, `job_approve` and more from CLI
 - **Comments & notifications** — per-task threads, @mentions, status change alerts
