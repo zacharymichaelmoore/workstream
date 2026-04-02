@@ -35,6 +35,7 @@ export interface TaskFormData {
   auto_continue: boolean;
   images: string[];
   workstream_id: string | null;
+  priority: string;
 }
 
 export interface EditTaskData {
@@ -49,6 +50,7 @@ export interface EditTaskData {
   auto_continue?: boolean;
   images?: string[];
   workstream_id?: string | null;
+  priority?: string;
 }
 
 interface Props {
@@ -91,6 +93,7 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
   const [assignee, setAssignee] = useState(editTask?.assignee || '');
   const [multiagent, setMultiagent] = useState(editTask?.multiagent || 'auto');
   const [autoContinue, setAutoContinue] = useState(editTask?.auto_continue ?? true);
+  const [priority, setPriority] = useState(editTask?.priority || 'backlog');
   const [images, setImages] = useState<string[]>(editTask?.images || []);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -265,6 +268,7 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
         auto_continue: autoContinue,
         images,
         workstream_id: workstreamId || null,
+        priority,
       });
       onClose();
     } catch (err: any) {
@@ -370,10 +374,14 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
               )}
             </div>
             <div className={s.field}>
-              <label className={s.label}>Mode</label>
-              <select className={s.select} value={mode} onChange={e => setMode(e.target.value)}>
-                <option value="ai">AI</option>
-                <option value="human">Human</option>
+              <label className={s.label}>Assignee</label>
+              <select className={s.select} value={assignee} onChange={e => {
+                const val = e.target.value;
+                setAssignee(val);
+                setMode(val ? 'human' : 'ai');
+              }}>
+                <option value="">AI</option>
+                {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
               </select>
             </div>
             <div className={s.field}>
@@ -397,11 +405,19 @@ export function TaskForm({ workstreams, members, existingTasks, customTypes = []
               </div>
             )}
             <div className={s.field}>
-              <label className={s.label}>Assignee</label>
-              <select className={s.select} value={assignee} onChange={e => setAssignee(e.target.value)}>
-                <option value="">AI (default)</option>
-                {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
+              <label className={s.label}>Priority</label>
+              <div className={s.segmented}>
+                {(['critical', 'upcoming', 'backlog'] as const).map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`${s.segmentedBtn} ${priority === p ? s.segmentedActive : ''}`}
+                    onClick={() => setPriority(p)}
+                  >
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

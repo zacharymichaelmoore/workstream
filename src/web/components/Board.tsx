@@ -17,6 +17,7 @@ interface Task {
   assignee?: string | null;
   images?: string[];
   status?: string;
+  priority?: string;
 }
 
 interface Workstream {

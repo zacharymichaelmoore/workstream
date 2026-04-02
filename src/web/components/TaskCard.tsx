@@ -21,6 +21,7 @@ interface Task {
   assignee?: { type: string; name?: string; initials?: string } | null;
   images?: string[];
   status?: string;
+  priority?: string;
 }
 
 interface TaskCardProps {
@@ -41,6 +42,7 @@ interface TaskCardProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   isDragging?: boolean;
+  dragDisabled?: boolean;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -70,17 +72,30 @@ export function TaskCard({
   onDragStart,
   onDragEnd,
   isDragging,
+  dragDisabled,
 }: TaskCardProps) {
   const jobStatus = job?.status;
   const isActive = jobStatus === 'queued' || jobStatus === 'running' || jobStatus === 'paused' || jobStatus === 'review';
   const taskDone = task.status === 'done' || jobStatus === 'done';
+  const isHumanWaiting = task.mode === 'human' && task.status === 'in_progress' && !isActive;
 
   const statusClass = jobStatus
     ? s[`status${cap(jobStatus)}`]
+    : isHumanWaiting ? s.statusPaused
     : taskDone ? s.statusDone : '';
+
+  // Priority: background tint always, border only when no active status border
+  const hasStatusBorder = !!statusClass;
+  const priorityBgClass = task.priority === 'critical' ? s.priorityCriticalBg
+    : task.priority === 'upcoming' ? s.priorityUpcomingBg
+    : '';
+  const priorityBorderClass = !hasStatusBorder && task.priority === 'critical' ? s.priorityCriticalBorder
+    : !hasStatusBorder && task.priority === 'upcoming' ? s.priorityUpcomingBorder
+    : '';
 
   const dotClass = jobStatus
     ? s[`dot${cap(jobStatus)}`]
+    : isHumanWaiting ? s.dotPaused
     : taskDone ? s.dotDone : s.dotIdle;
 
   const tagStatusClass = jobStatus
@@ -88,45 +103,47 @@ export function TaskCard({
 
   return (
     <div
-      className={`${s.card} ${statusClass} ${isDragging ? s.dragging : ''}`}
+      className={`${s.card} ${priorityBgClass} ${priorityBorderClass} ${statusClass} ${isDragging ? s.dragging : ''}`}
       onClick={onToggleExpand}
     >
       {/* Compact view — always visible */}
       <div className={s.compact}>
-        <span
-          className={s.handle}
-          draggable
-          onDragStart={(e) => {
-            e.stopPropagation();
-            const card = (e.target as HTMLElement).closest(`.${s.card}`) as HTMLElement;
-            if (card) {
-              const clone = card.cloneNode(true) as HTMLElement;
-              clone.style.width = `${card.offsetWidth}px`;
-              clone.style.transform = 'rotate(2deg) scale(1.02)';
-              clone.style.boxShadow = '0 12px 32px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.1)';
-              clone.style.borderRadius = '10px';
-              clone.style.opacity = '0.92';
-              clone.style.position = 'fixed';
-              clone.style.top = '-9999px';
-              clone.style.left = '-9999px';
-              clone.style.pointerEvents = 'none';
-              clone.id = '__drag-preview__';
-              document.body.appendChild(clone);
-              e.dataTransfer.setDragImage(clone, card.offsetWidth / 2, 20);
-            }
-            onDragStart?.();
-            e.dataTransfer.effectAllowed = 'move';
-          }}
-          onDragEnd={(e) => {
-            e.stopPropagation();
-            document.getElementById('__drag-preview__')?.remove();
-            onDragEnd?.();
-          }}
-          onClick={(e) => e.stopPropagation()}
-          title="Drag to reorder"
-        >&#8942;&#8942;</span>
+        {!dragDisabled && (
+          <span
+            className={s.handle}
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation();
+              const card = (e.target as HTMLElement).closest(`.${s.card}`) as HTMLElement;
+              if (card) {
+                const clone = card.cloneNode(true) as HTMLElement;
+                clone.style.width = `${card.offsetWidth}px`;
+                clone.style.transform = 'rotate(2deg) scale(1.02)';
+                clone.style.boxShadow = '0 12px 32px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.1)';
+                clone.style.borderRadius = '10px';
+                clone.style.opacity = '0.92';
+                clone.style.position = 'fixed';
+                clone.style.top = '-9999px';
+                clone.style.left = '-9999px';
+                clone.style.pointerEvents = 'none';
+                clone.id = '__drag-preview__';
+                document.body.appendChild(clone);
+                e.dataTransfer.setDragImage(clone, card.offsetWidth / 2, 20);
+              }
+              onDragStart?.();
+              e.dataTransfer.effectAllowed = 'move';
+            }}
+            onDragEnd={(e) => {
+              e.stopPropagation();
+              document.getElementById('__drag-preview__')?.remove();
+              onDragEnd?.();
+            }}
+            onClick={(e) => e.stopPropagation()}
+            title="Drag to reorder"
+          >&#8942;&#8942;</span>
+        )}
 
-        {(jobStatus || taskDone) && <span className={`${s.statusDot} ${dotClass}`} />}
+        {(jobStatus || taskDone || isHumanWaiting) && <span className={`${s.statusDot} ${dotClass}`} />}
 
         <span className={s.title}>{task.title}</span>
 
@@ -134,12 +151,19 @@ export function TaskCard({
           {!task.auto_continue && (
             <span className={s.chain} title="Manual review required">&#9646;&#9646;</span>
           )}
+          {isHumanWaiting && (
+            <span className={`${s.tag} ${s.tagStatus} ${s.tagPaused}`}>
+              Waiting for human
+            </span>
+          )}
           {jobStatus && jobStatus !== 'done' && (
             <span className={`${s.tag} ${s.tagStatus} ${tagStatusClass}`}>
               {STATUS_LABELS[jobStatus]}
             </span>
           )}
-          {task.mode === 'human' && <span className={`${s.tag} ${s.tagHuman}`}>human</span>}
+          {task.assignee && task.assignee.type !== 'ai' && !isHumanWaiting && (
+            <span className={`${s.tag} ${s.tagHuman}`}>{task.assignee.initials || task.assignee.name || 'human'}</span>
+          )}
           <span className={`${s.tag} ${s.tagType}`}>{task.type}</span>
         </div>
       </div>
@@ -167,7 +191,7 @@ export function TaskCard({
                   {job.phases.map((p, i) => (
                     <span key={p.name} className={s.phaseWrap}>
                       {i > 0 && <span className={s.arrow}>&rarr;</span>}
-                      <span className={`${s.phase} ${s[`ph${cap(p.status)}`]}`}>
+                      <span className={`${s.phase} ${s[`ph${cap(p.status)}`]} ${s[`pn${cap(p.name)}`] || ''}`}>
                         {p.name}
                       </span>
                     </span>
@@ -238,8 +262,28 @@ export function TaskCard({
         </div>
       )}
 
+      {/* Human task waiting — ALWAYS visible when in this state */}
+      {isHumanWaiting && (
+        <div className={s.detail} onClick={(e) => e.stopPropagation()}>
+          {task.description && (
+            <div className={s.desc}><Markdown>{task.description}</Markdown></div>
+          )}
+          <div className={s.humanWaiting}>
+            <span className={s.humanWaitingLabel}>This task needs manual completion</span>
+            {onUpdateTask && (
+              <button
+                className={`btn btnSuccess ${s.humanCompleteBtn}`}
+                onClick={() => onUpdateTask(task.id, { status: 'done' })}
+              >
+                Complete
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Preview: description + image thumbnails (visible when collapsed and NOT active) */}
-      {!isActive && !isExpanded && (task.description || (task.images && task.images.length > 0)) && (
+      {!isActive && !isHumanWaiting && !isExpanded && (task.description || (task.images && task.images.length > 0)) && (
         <div className={s.preview}>
           {task.description && (
             <div className={s.previewDesc}>
@@ -257,14 +301,14 @@ export function TaskCard({
       )}
 
       {/* Expanded detail for non-active states (click to toggle) */}
-      {!isActive && isExpanded && (
+      {!isActive && !isHumanWaiting && isExpanded && (
         <div className={s.detail} onClick={(e) => e.stopPropagation()}>
           {/* FAILED */}
           {jobStatus === 'failed' && job && (
             <div className={s.failedSection}>
               {job.question && <div className={s.errorMsg}>{job.question}</div>}
               <div className={s.failActions}>
-                {onRun && task.mode === 'ai' && (
+                {onRun && (!task.assignee || task.assignee.type === 'ai') && (
                   <button className="btn btnDanger btnSm" onClick={() => onRun(task.id)}>
                     Restart
                   </button>
@@ -281,11 +325,16 @@ export function TaskCard({
           {/* DONE (job completed) */}
           {jobStatus === 'done' && job && (
             <div className={s.doneSection}>
-              <span className={s.doneLabel}>&#10003; Completed {job.completedAgo}</span>
-              {onDeleteJob && (
-                <button className="btn btnGhost btnSm" onClick={() => onDeleteJob(job.id)}>
-                  Dismiss
-                </button>
+              <div className={s.doneHeader}>
+                <span className={s.doneLabel}>&#10003; Completed {job.completedAgo}</span>
+                {onDeleteJob && (
+                  <button className="btn btnGhost btnSm" onClick={() => onDeleteJob(job.id)}>
+                    Dismiss
+                  </button>
+                )}
+              </div>
+              {job.review?.summary && (
+                <div className={s.doneSummary}>{job.review.summary}</div>
               )}
             </div>
           )}
@@ -325,13 +374,12 @@ function IdleDetail({
       {task.description && <div className={s.desc}><Markdown>{task.description}</Markdown></div>}
       <div className={s.meta}>
         <span>effort: {task.effort}</span>
-        <span>mode: {task.mode}</span>
         {task.multiagent === 'yes' && <span>subagents: on</span>}
-        {task.assignee && (
-          <span>
-            assignee: {task.assignee.type === 'ai' ? 'AI' : (task.assignee.name || task.assignee.initials)}
-          </span>
-        )}
+        <span>
+          assignee: {task.assignee && task.assignee.type !== 'ai'
+            ? (task.assignee.name || task.assignee.initials)
+            : 'AI'}
+        </span>
       </div>
 
       {task.images && task.images.length > 0 && (
@@ -344,7 +392,7 @@ function IdleDetail({
         </div>
       )}
 
-      {task.mode === 'human' && onUpdateTask && (
+      {task.assignee && task.assignee.type !== 'ai' && onUpdateTask && (
         <div className={s.humanActions}>
           <button className="btn btnPrimary btnSm" onClick={() => onUpdateTask(task.id, { status: 'in_progress' })}>
             Start
@@ -359,7 +407,7 @@ function IdleDetail({
       )}
 
       <div className={s.idleActions}>
-        {task.mode === 'ai' && onRun && (
+        {(!task.assignee || task.assignee.type === 'ai') && onRun && (
           <button className="btn btnPrimary btnSm" onClick={() => onRun(task.id)}>
             Run
           </button>

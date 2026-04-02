@@ -316,6 +316,40 @@
 }
 .imageThumb:hover .imageRemove { opacity: 1; }
 
+/* Segmented control (priority picker) */
+.segmented {
+  display: flex;
+  border: 1.5px solid var(--divider);
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+}
+.segmentedBtn {
+  flex: 1;
+  padding: 8px 6px;
+  background: none;
+  border: none;
+  border-right: 1px solid var(--divider);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+.segmentedBtn:last-child {
+  border-right: none;
+}
+.segmentedBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-2);
+}
+.segmentedActive {
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: 600;
+}
+
 .error {
   font-size: 13px;
   color: var(--red);

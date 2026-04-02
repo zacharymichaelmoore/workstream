@@ -36,6 +36,21 @@
   opacity: 0.8;
 }
 
+/* Priority ambient background (always applied) */
+.priorityCriticalBg {
+  background: var(--priority-critical-bg);
+}
+.priorityUpcomingBg {
+  background: var(--priority-upcoming-bg);
+}
+/* Priority left border (only when no active status border) */
+.priorityCriticalBorder {
+  border-left: 2px solid var(--priority-critical);
+}
+.priorityUpcomingBorder {
+  border-left: 2px solid var(--priority-upcoming);
+}
+
 /* Card being dragged — faded in-place ghost */
 .dragging {
   opacity: 0.25;
@@ -50,7 +65,7 @@
 .compact {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 6px;
   padding: 10px 12px;
 }
 
@@ -182,6 +197,7 @@
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
+  margin-top: 6px;
 }
 .dotQueued {
   background: var(--text-4);
@@ -201,7 +217,7 @@
   background: var(--red);
 }
 .dotDone {
-  background: var(--text-4);
+  background: var(--green);
 }
 .dotIdle {
   background: var(--divider);
@@ -249,17 +265,35 @@
   letter-spacing: 0.02em;
   text-transform: capitalize;
 }
-.phCompleted {
-  background: var(--green-bg);
-  color: var(--green);
-}
+
+/* Status controls intensity */
+.phCompleted { opacity: 1; }
 .phCurrent {
-  background: var(--blue-bg);
-  color: var(--blue);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1.5px currentColor;
 }
-.phPending {
-  background: var(--bg-hover);
-  color: var(--text-4);
+.phPending { opacity: 0.35; }
+
+/* Per-phase colors — muted, desaturated tones */
+.pnPlan {
+  background: rgba(120, 113, 148, 0.09);
+  color: #6E6893;
+}
+.pnAnalyze {
+  background: rgba(100, 130, 160, 0.09);
+  color: #5A7A96;
+}
+.pnFix, .pnImplement, .pnRefactor, .pnWrite-tests {
+  background: rgba(140, 120, 90, 0.09);
+  color: #8A7352;
+}
+.pnVerify {
+  background: rgba(90, 135, 120, 0.09);
+  color: #5A8A73;
+}
+.pnReview {
+  background: rgba(130, 110, 130, 0.09);
+  color: #7D6680;
 }
 
 /* Running status line */
@@ -349,6 +383,8 @@
 /* ─── Done section ─── */
 .doneSection {
   padding: 10px 0 4px;
+}
+.doneHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -360,6 +396,16 @@
   display: flex;
   align-items: center;
   gap: 5px;
+}
+.doneSummary {
+  font-size: 12px;
+  color: var(--text-3);
+  line-height: 1.5;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--bg-hover);
+  border-radius: 6px;
+  white-space: pre-wrap;
 }
 
 /* ─── Idle/backlog detail ─── */
@@ -439,4 +485,22 @@
   padding-top: 8px;
   display: flex;
   justify-content: flex-end;
+}
+
+/* Human task waiting state */
+.humanWaiting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0 4px;
+}
+.humanWaitingLabel {
+  font-size: 13px;
+  color: var(--text-3);
+}
+.humanCompleteBtn {
+  padding: 6px 20px;
+  font-size: 14px;
+  font-weight: 600;
 }

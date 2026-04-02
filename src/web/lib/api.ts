@@ -180,6 +180,7 @@ export async function createTask(data: {
   auto_continue?: boolean;
   images?: string[];
   workstream_id?: string | null;
+  priority?: string;
 }) {
   return apiFetch('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
 }
