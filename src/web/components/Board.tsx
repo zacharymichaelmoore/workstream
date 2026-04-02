@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { WorkstreamColumn } from './WorkstreamColumn';
-import type { JobView, GitAction } from './job-types';
+import type { JobView } from './job-types';
 import s from './Board.module.css';
 
 interface Task {
@@ -46,10 +46,11 @@ interface BoardProps {
   // Job actions
   onTerminate: (jobId: string) => void;
   onReply: (jobId: string, answer: string) => void;
-  onApprove: (jobId: string, action?: GitAction) => void;
+  onApprove: (jobId: string) => void;
   onReject: (jobId: string) => void;
   onRevert: (jobId: string) => void;
   onDeleteJob: (jobId: string) => void;
+  onCreatePr: (workstreamId: string) => void;
 }
 
 export function Board({
@@ -73,6 +74,7 @@ export function Board({
   onReject,
   onRevert,
   onDeleteJob,
+  onCreatePr,
 }: BoardProps) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [addingWs, setAddingWs] = useState(false);
@@ -208,6 +210,7 @@ export function Board({
           onReject={onReject}
           onRevert={onRevert}
           onDeleteJob={onDeleteJob}
+          onCreatePr={() => onCreatePr(ws.id)}
         />
       ))}
 

@@ -22,4 +22,3 @@ export type JobView = {
   completedAgo?: string;
 };
 
-export type GitAction = 'commit' | 'commit_push' | 'branch_pr';

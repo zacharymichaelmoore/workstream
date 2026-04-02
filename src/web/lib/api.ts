@@ -223,6 +223,10 @@ export async function gitPr(jobId: string, localPath: string) {
   return apiFetch('/api/git/pr', { method: 'POST', body: JSON.stringify({ jobId, localPath }) });
 }
 
+export async function createWorkstreamPr(workstreamId: string, localPath: string) {
+  return apiFetch('/api/git/workstream-pr', { method: 'POST', body: JSON.stringify({ workstreamId, localPath }) });
+}
+
 // --- Invites / member management ---
 export async function inviteMember(projectId: string, email: string, role: string) {
   return apiFetch(`/api/projects/${projectId}/invite`, { method: 'POST', body: JSON.stringify({ email, role }) });

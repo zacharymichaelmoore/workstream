@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { TaskCard } from './TaskCard';
-import type { JobView, GitAction } from './job-types';
+import type { JobView } from './job-types';
 import s from './WorkstreamColumn.module.css';
 
 interface Task {
@@ -47,10 +47,11 @@ interface WorkstreamColumnProps {
   // Job actions
   onTerminate?: (jobId: string) => void;
   onReply?: (jobId: string, answer: string) => void;
-  onApprove?: (jobId: string, action?: GitAction) => void;
+  onApprove?: (jobId: string) => void;
   onReject?: (jobId: string) => void;
   onRevert?: (jobId: string) => void;
   onDeleteJob?: (jobId: string) => void;
+  onCreatePr?: () => void;
 }
 
 export function WorkstreamColumn({
@@ -76,6 +77,7 @@ export function WorkstreamColumn({
   onReject,
   onRevert,
   onDeleteJob,
+  onCreatePr,
 }: WorkstreamColumnProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
@@ -275,7 +277,10 @@ export function WorkstreamColumn({
 
       {allDone && !isBacklog && (
         <div className={s.completeBanner}>
-          &#10003; Workstream complete
+          <span>&#10003; Workstream complete</span>
+          {onCreatePr && (
+            <button className="btn btnPrimary btnSm" onClick={onCreatePr}>Create PR</button>
+          )}
         </div>
       )}
     </div>

@@ -6,7 +6,7 @@ import { useJobs } from './hooks/useJobs';
 import { useWorkstreams } from './hooks/useWorkstreams';
 import { useMembers } from './hooks/useMembers';
 import { useNotifications } from './hooks/useNotifications';
-import { signUp, signIn, signOut, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, gitCommit, gitPush, gitPr, updateTask } from './lib/api';
+import { signUp, signIn, signOut, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, updateTask, createWorkstreamPr } from './lib/api';
 import { OnboardingCheck } from './components/OnboardingCheck';
 import { AuthGate } from './components/AuthGate';
 import { NewProject } from './components/NewProject';
@@ -277,18 +277,9 @@ export default function App() {
             alert(err.message || 'Failed to send reply');
           }
         }}
-        onApprove={async (jobId, action) => {
+        onApprove={async (jobId) => {
           try {
             await approveJob(jobId);
-            const localPath = projects.current?.local_path || '';
-            if (action === 'commit') {
-              await gitCommit(jobId, localPath);
-            } else if (action === 'commit_push') {
-              await gitCommit(jobId, localPath);
-              await gitPush(localPath);
-            } else if (action === 'branch_pr') {
-              await gitPr(jobId, localPath);
-            }
             jobs.reload();
             tasks.reload();
           } catch (err: any) {
@@ -321,6 +312,16 @@ export default function App() {
             jobs.reload();
           } catch (err: any) {
             alert(err.message || 'Failed to dismiss job');
+          }
+        }}
+        onCreatePr={async (workstreamId) => {
+          try {
+            const result = await createWorkstreamPr(workstreamId, projects.current?.local_path || '');
+            if (result.prUrl) {
+              window.open(result.prUrl, '_blank');
+            }
+          } catch (err: any) {
+            alert(err.message || 'Failed to create PR');
           }
         }}
       />

@@ -3,9 +3,8 @@ import Markdown from 'react-markdown';
 import { useComments } from '../hooks/useComments';
 import { timeAgo } from '../lib/time';
 import { LiveLogs } from './LiveLogs';
-import { ApproveDropdown } from './ApproveDropdown';
 import { ReplyInput } from './ReplyInput';
-import type { JobView, GitAction } from './job-types';
+import type { JobView } from './job-types';
 import s from './TaskCard.module.css';
 
 function cap(str: string) { return str.charAt(0).toUpperCase() + str.slice(1); }
@@ -35,7 +34,7 @@ interface TaskCardProps {
   onUpdateTask?: (taskId: string, data: Record<string, unknown>) => void;
   onTerminate?: (jobId: string) => void;
   onReply?: (jobId: string, answer: string) => void;
-  onApprove?: (jobId: string, action?: GitAction) => void;
+  onApprove?: (jobId: string) => void;
   onReject?: (jobId: string) => void;
   onRevert?: (jobId: string) => void;
   onDeleteJob?: (jobId: string) => void;
@@ -226,7 +225,7 @@ export function TaskCard({
               )}
               <div className={s.reviewActions}>
                 {onApprove && (
-                  <ApproveDropdown onSelect={(action) => onApprove(job.id, action)} />
+                  <button className="btn btnSuccess btnSm" onClick={() => onApprove(job.id)}>Approve</button>
                 )}
                 {onReject && (
                   <button className="btn btnDanger btnSm" onClick={() => onReject(job.id)}>
