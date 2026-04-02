@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { getSkills, type SkillInfo } from '../lib/api';
 import s from './TaskForm.module.css';
 
-interface Milestone {
+interface Workstream {
   id: string;
   name: string;
 }
@@ -32,9 +32,9 @@ export interface TaskFormData {
   effort: string;
   multiagent: string;
   assignee: string | null;
-  blocked_by: string[];
+  auto_continue: boolean;
   images: string[];
-  milestone_id: string | null;
+  workstream_id: string | null;
 }
 
 export interface EditTaskData {
@@ -46,18 +46,19 @@ export interface EditTaskData {
   effort: string;
   multiagent?: string;
   assignee?: string | null;
-  blocked_by?: string[];
+  auto_continue?: boolean;
   images?: string[];
-  milestone_id?: string | null;
+  workstream_id?: string | null;
 }
 
 interface Props {
-  milestones: Milestone[];
+  workstreams: Workstream[];
   members: Member[];
   existingTasks: TaskOption[];
   customTypes?: CustomType[];
   onSaveCustomType?: (name: string, pipeline: string) => Promise<void>;
   localPath?: string;
+  defaultWorkstreamId?: string | null;
   editTask?: EditTaskData;
   onSubmit: (data: TaskFormData) => Promise<void>;
   onClose: () => void;
@@ -72,7 +73,7 @@ const PIPELINE_OPTIONS = [
   { value: 'test', label: 'test (plan → write-tests → verify → review)' },
 ];
 
-export function TaskForm({ milestones, members, existingTasks, customTypes = [], onSaveCustomType, localPath, editTask, onSubmit, onClose }: Props) {
+export function TaskForm({ workstreams, members, existingTasks, customTypes = [], onSaveCustomType, localPath, defaultWorkstreamId, editTask, onSubmit, onClose }: Props) {
   const isEdit = !!editTask;
 
   // Determine if the editTask type is a custom (non-built-in) type
@@ -86,15 +87,13 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
   const [isCustomType, setIsCustomType] = useState(editTypeIsCustom);
   const [mode, setMode] = useState(editTask?.mode || 'ai');
   const [effort, setEffort] = useState(editTask?.effort || 'high');
-  const [milestoneId, setMilestoneId] = useState(editTask?.milestone_id || '');
+  const [workstreamId, setWorkstreamId] = useState(editTask?.workstream_id || defaultWorkstreamId || '');
   const [assignee, setAssignee] = useState(editTask?.assignee || '');
   const [multiagent, setMultiagent] = useState(editTask?.multiagent || 'auto');
-  const [blockedBy, setBlockedBy] = useState<string[]>(editTask?.blocked_by || []);
+  const [autoContinue, setAutoContinue] = useState(editTask?.auto_continue ?? true);
   const [images, setImages] = useState<string[]>(editTask?.images || []);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showMore, setShowMore] = useState(isEdit);
-  const [blockerSearch, setBlockerSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -105,6 +104,21 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
   const [selectedSkillIdx, setSelectedSkillIdx] = useState(0);
   const [slashStart, setSlashStart] = useState(-1);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea to fit content, capped at 300px
+  const autoResizeTextarea = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 300) + 'px';
+  }, []);
+
+  // Auto-resize on mount when editing a task with existing description
+  useEffect(() => {
+    if (editTask?.description) {
+      autoResizeTextarea();
+    }
+  }, [editTask?.description, autoResizeTextarea]);
 
   // Fetch skills on mount
   useEffect(() => {
@@ -128,6 +142,7 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
     const val = e.target.value;
     const cursor = e.target.selectionStart;
     setDescription(val);
+    autoResizeTextarea();
 
     // Find the `/` that triggers autocomplete: must be at start of line or after whitespace
     const textBefore = val.substring(0, cursor);
@@ -141,7 +156,7 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
     } else {
       setShowSkills(false);
     }
-  }, []);
+  }, [autoResizeTextarea]);
 
   const insertSkill = useCallback((skillName: string) => {
     if (slashStart < 0) return;
@@ -151,7 +166,7 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
     const newDesc = before + '/' + skillName + ' ' + after;
     setDescription(newDesc);
     setShowSkills(false);
-    // Restore focus and cursor
+    // Restore focus and cursor, then resize
     requestAnimationFrame(() => {
       const ta = textareaRef.current;
       if (ta) {
@@ -159,8 +174,9 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
         const pos = before.length + skillName.length + 2; // +2 for / and space
         ta.selectionStart = ta.selectionEnd = pos;
       }
+      autoResizeTextarea();
     });
-  }, [description, slashStart, skillFilter]);
+  }, [description, slashStart, skillFilter, autoResizeTextarea]);
 
   const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -246,9 +262,9 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
         effort,
         multiagent,
         assignee: assignee || null,
-        blocked_by: blockedBy,
+        auto_continue: autoContinue,
         images,
-        milestone_id: milestoneId || null,
+        workstream_id: workstreamId || null,
       });
       onClose();
     } catch (err: any) {
@@ -258,21 +274,15 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
     }
   }
 
-  function toggleBlocker(taskId: string) {
-    setBlockedBy(prev =>
-      prev.includes(taskId)
-        ? prev.filter(id => id !== taskId)
-        : [...prev, taskId]
-    );
-  }
-
-  const filteredTasks = existingTasks.filter(t =>
-    t.title.toLowerCase().includes(blockerSearch.toLowerCase())
-  );
-
   return (
     <div className={s.overlay} onClick={onClose}>
-      <div className={s.modal} onClick={e => e.stopPropagation()}>
+      <div
+        className={`${s.modal} ${dragOver ? s.modalDragOver : ''}`}
+        onClick={e => e.stopPropagation()}
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={e => { if (e.currentTarget === e.target || !e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); }}
+        onDrop={e => { handleImageDrop(e); setDragOver(false); }}
+      >
         <h2 className={s.heading}>{isEdit ? 'Edit task' : 'New task'}</h2>
         <form onSubmit={handleSubmit} className={s.form}>
           <input
@@ -299,7 +309,6 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
                   handleImagePaste(e);
                 }
               }}
-              rows={3}
             />
             {showSkills && filteredSkills.length > 0 && (
               <div className={s.skillDropdown}>
@@ -378,12 +387,12 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
             </div>
           </div>
           <div className={s.row}>
-            {milestones.length > 0 && (
+            {workstreams.length > 0 && (
               <div className={s.field}>
-                <label className={s.label}>Milestone</label>
-                <select className={s.select} value={milestoneId} onChange={e => setMilestoneId(e.target.value)}>
-                  <option value="">None</option>
-                  {milestones.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                <label className={s.label}>Workstream</label>
+                <select className={s.select} value={workstreamId} onChange={e => setWorkstreamId(e.target.value)}>
+                  <option value="">Backlog</option>
+                  {workstreams.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                 </select>
               </div>
             )}
@@ -396,90 +405,42 @@ export function TaskForm({ milestones, members, existingTasks, customTypes = [],
             </div>
           </div>
 
-          <button
-            type="button"
-            className="btn btnGhost"
-            onClick={() => setShowMore(!showMore)}
-            style={{ alignSelf: 'flex-start', padding: '0' }}
-          >
-            {showMore ? '- Less options' : '+ More options'}
-          </button>
+          <div className={s.checkboxes}>
+            <label className={s.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={multiagent === 'yes'}
+                onChange={e => setMultiagent(e.target.checked ? 'yes' : 'auto')}
+              />
+              <span>Use subagents</span>
+            </label>
+            <label className={s.checkboxRow}>
+              <input
+                type="checkbox"
+                checked={autoContinue}
+                onChange={e => setAutoContinue(e.target.checked)}
+              />
+              <span>Continue automatically</span>
+            </label>
+          </div>
 
-          {showMore && (
-            <div className={s.moreSection}>
-              <label className={s.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={multiagent === 'yes'}
-                  onChange={e => setMultiagent(e.target.checked ? 'yes' : 'auto')}
-                />
-                <span>Use subagents</span>
-              </label>
-
-              <div className={s.field}>
-                <label className={s.label}>Blocked by</label>
-                {existingTasks.length > 0 ? (
-                  <div className={s.blockerBox}>
-                    {existingTasks.length > 5 && (
-                      <input
-                        className={s.blockerSearch}
-                        placeholder="Search tasks..."
-                        value={blockerSearch}
-                        onChange={e => setBlockerSearch(e.target.value)}
-                      />
-                    )}
-                    <div className={s.blockerList}>
-                      {filteredTasks.map(t => (
-                        <label key={t.id} className={s.blockerItem}>
-                          <input
-                            type="checkbox"
-                            checked={blockedBy.includes(t.id)}
-                            onChange={() => toggleBlocker(t.id)}
-                          />
-                          <span className={s.blockerTitle}>{t.title}</span>
-                        </label>
-                      ))}
-                      {filteredTasks.length === 0 && (
-                        <span className={s.blockerEmpty}>No matching tasks</span>
-                      )}
-                    </div>
-                    {blockedBy.length > 0 && (
-                      <div className={s.blockerCount}>
-                        {blockedBy.length} task{blockedBy.length !== 1 ? 's' : ''} selected
-                      </div>
-                    )}
+          <div className={s.imagesSection}>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handleFileSelect} />
+            {images.length > 0 && (
+              <div className={s.imageGrid}>
+                {images.map((url, i) => (
+                  <div key={i} className={s.imageThumb}>
+                    <img src={url} alt="" />
+                    <button type="button" className={s.imageRemove} onClick={() => removeImage(i)}>&times;</button>
                   </div>
-                ) : (
-                  <span className={s.noItems}>No other tasks yet</span>
-                )}
+                ))}
               </div>
-
-              <div className={s.field}>
-                <label className={s.label}>Images</label>
-                <div
-                  className={`${s.dropZone} ${dragOver ? s.dropZoneActive : ''}`}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { handleImageDrop(e); setDragOver(false); }}
-                  onPaste={handleImagePaste}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <span className={s.dropText}>Drop images here, paste, or click to browse</span>
-                  <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handleFileSelect} />
-                </div>
-                {images.length > 0 && (
-                  <div className={s.imageGrid}>
-                    {images.map((url, i) => (
-                      <div key={i} className={s.imageThumb}>
-                        <img src={url} alt="" />
-                        <button type="button" className={s.imageRemove} onClick={() => removeImage(i)}>&times;</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+            )}
+            <button type="button" className="btn btnGhost btnSm" onClick={() => fileInputRef.current?.click()}>
+              + Add images
+            </button>
+            {dragOver && <div className={s.dragHint}>Drop images anywhere on this form</div>}
+          </div>
 
           {error && <div className={s.error}>{error}</div>}
 

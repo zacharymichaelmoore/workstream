@@ -3,19 +3,16 @@ import { useAuth } from './hooks/useAuth';
 import { useProjects } from './hooks/useProjects';
 import { useTasks } from './hooks/useTasks';
 import { useJobs } from './hooks/useJobs';
-import { useMilestones } from './hooks/useMilestones';
+import { useWorkstreams } from './hooks/useWorkstreams';
 import { useMembers } from './hooks/useMembers';
 import { useNotifications } from './hooks/useNotifications';
-import { signUp, signIn, signOut, addComment as apiAddComment, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, gitCommit, gitPush, gitPr, updateTask } from './lib/api';
-import { computeFocus } from './lib/focus';
+import { signUp, signIn, signOut, runTaskApi, replyToJob, approveJob, rejectJob, revertJob, terminateJob, deleteJob, gitCommit, gitPush, gitPr, updateTask } from './lib/api';
 import { OnboardingCheck } from './components/OnboardingCheck';
 import { AuthGate } from './components/AuthGate';
 import { NewProject } from './components/NewProject';
 import { Header } from './components/Header';
-import { FocusView } from './components/FocusView';
-import { JobsPanel } from './components/JobsPanel';
-import type { JobView } from './components/JobsPanel';
-import { Backlog } from './components/Backlog';
+import { Board } from './components/Board';
+import type { JobView } from './components/job-types';
 import { TaskForm, type EditTaskData } from './components/TaskForm';
 import { AddProjectModal } from './components/AddProjectModal';
 import { MembersModal } from './components/MembersModal';
@@ -34,9 +31,6 @@ const TASK_TYPE_PHASES: Record<string, string[]> = {
   'chore': ['plan', 'implement', 'verify', 'review'],
 };
 
-/** Build phases array for the UI from API data.
- *  Shows the full pipeline for the task type, marking each phase as
- *  completed, current, or pending. */
 function buildPhases(phasesCompleted: any[], currentPhase: string | null, taskType: string): { name: string; status: string }[] {
   const completed = new Set(
     (phasesCompleted || []).map((p: any) => typeof p === 'string' ? p : p.name || p.phase)
@@ -53,33 +47,29 @@ function buildPhases(phasesCompleted: any[], currentPhase: string | null, taskTy
 export default function App() {
   const [envReady, setEnvReady] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [taskFormWorkstream, setTaskFormWorkstream] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<EditTaskData | null>(null);
   const [showAddProject, setShowAddProject] = useState(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
-  const [milestoneFilter, setMilestoneFilter] = useState<string | null>(null);
   const auth = useAuth();
   const projects = useProjects(auth.profile?.id);
   const tasks = useTasks(projects.current?.id || null);
   const jobs = useJobs(projects.current?.id || null);
-  const milestones = useMilestones(projects.current?.id || null);
+  const workstreams = useWorkstreams(projects.current?.id || null);
   const members = useMembers(projects.current?.id || null);
   const notifs = useNotifications(auth.profile?.id);
 
   // Build a task-title lookup from all tasks
   const taskTitleMap = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const t of tasks.tasks) {
-      map[t.id] = t.title;
-    }
+    for (const t of tasks.tasks) map[t.id] = t.title;
     return map;
   }, [tasks.tasks]);
 
   // Build a task-type lookup from all tasks (id -> type)
   const taskTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const t of tasks.tasks) {
-      map[t.id] = t.type;
-    }
+    for (const t of tasks.tasks) map[t.id] = t.type;
     return map;
   }, [tasks.tasks]);
 
@@ -92,43 +82,21 @@ export default function App() {
     return () => clearInterval(interval);
   }, [jobs.jobs]);
 
+  useEffect(() => {
+    document.title = projects.current?.name
+      ? `${projects.current.name} - CodeSync`
+      : 'CodeSync';
+  }, [projects.current?.name]);
+
   // Build a member lookup from project members
   const memberMap = useMemo(() => {
     const map: Record<string, { name: string; initials: string }> = {};
-    for (const m of members.members) {
-      map[m.id] = { name: m.name, initials: m.initials };
-    }
+    for (const m of members.members) map[m.id] = { name: m.name, initials: m.initials };
     return map;
   }, [members.members]);
 
-  // Focus algorithm: score tasks by blockers, deadlines, position
-  const focusResult = useMemo(() => {
-    const blockers = tasks.tasks.flatMap(t =>
-      (t.blocked_by || []).map(dep => ({ task_id: t.id, blocked_by: dep }))
-    );
-    return computeFocus(
-      tasks.tasks.map(t => ({
-        id: t.id,
-        title: t.title,
-        type: t.type,
-        mode: t.mode,
-        effort: t.effort,
-        status: t.status,
-        position: t.position,
-        milestone_id: t.milestone_id,
-      })),
-      milestones.milestones.map(m => ({
-        id: m.id,
-        name: m.name,
-        deadline: m.deadline,
-      })),
-      blockers,
-    );
-  }, [tasks.tasks, milestones.milestones]);
-
-  // Map API jobs to the shape JobsPanel expects
+  // Map API jobs to JobView shape
   const jobViews: JobView[] = useMemo(() => {
-    // Order: running first, then paused, review, done, failed
     const order: Record<string, number> = { running: 0, paused: 1, review: 2, done: 3, failed: 4 };
     const sorted = [...jobs.jobs].sort((a, b) => (order[a.status] ?? 5) - (order[b.status] ?? 5));
 
@@ -187,29 +155,22 @@ export default function App() {
     return <NewProject onCreate={async (name, supabaseConfig, localPath) => { await projects.createProject(name, supabaseConfig, localPath); }} />;
   }
 
-  // Step 6: Focus task
-  const focusTask = focusResult?.task
-    ? tasks.backlog.find(t => t.id === focusResult.task.id) || tasks.backlog[0]
-    : tasks.backlog[0];
-  const focusReason = focusResult?.reason || `Top of your backlog. ${tasks.backlog.length} tasks remaining.`;
-  const nextTasks = tasks.backlog.filter(t => t.id !== focusTask?.id).slice(0, 2);
-
-  // Milestone progress
-  const activeMilestone = milestones.active[0];
-  const milestoneTasks = activeMilestone
-    ? tasks.tasks.filter(t => t.milestone_id === activeMilestone.id)
+  // Workstream progress for header
+  const activeWs = workstreams.active[0];
+  const wsTasks = activeWs
+    ? tasks.tasks.filter(t => t.workstream_id === activeWs.id)
     : tasks.tasks;
-  const msProgress = {
-    name: activeMilestone?.name || 'All',
-    tasksDone: milestoneTasks.filter(t => t.status === 'done').length,
-    tasksTotal: milestoneTasks.length,
+  const wsProgress = {
+    name: activeWs?.name || 'All',
+    tasksDone: wsTasks.filter(t => t.status === 'done').length,
+    tasksTotal: wsTasks.length,
   };
 
   return (
     <>
       <Header
         projectName={projects.current?.name || ''}
-        milestone={msProgress}
+        milestone={wsProgress}
         notifications={notifs.unreadCount}
         notificationList={notifs.notifications}
         onMarkRead={notifs.markRead}
@@ -222,198 +183,153 @@ export default function App() {
         onSignOut={async () => { await signOut(); window.location.reload(); }}
         onManageMembers={() => setShowMembersModal(true)}
       />
-      <main style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 480px',
-        minHeight: 'calc(100vh - 56px)',
-      }}>
-        <div style={{
-          padding: '56px 64px 100px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-        }}>
-          <div style={{ width: '100%', maxWidth: 600 }}>
-            {focusTask ? (
-              <FocusView
-                task={{
-                  id: focusTask.id,
-                  title: focusTask.title,
-                  type: focusTask.type,
-                  mode: focusTask.mode,
-                  effort: focusTask.effort,
-                  blocksCount: 0,
-                }}
-                reason={focusReason}
-                next={nextTasks[0]?.title || ''}
-                then={nextTasks[1]?.title || ''}
-                onRun={async (taskId) => {
-                  if (!projects.current?.id || !projects.current?.local_path) {
-                    alert('Set a local folder path for this project first.');
-                    return;
-                  }
-                  try {
-                    await runTaskApi(taskId, projects.current.id, projects.current.local_path);
-                    jobs.reload();
-                    tasks.reload();
-                  } catch (err: any) {
-                    alert(err.message || 'Failed to start task');
-                  }
-                }}
-                onSkip={async (taskId, reason) => {
-                  await tasks.updateTask(taskId, { position: tasks.backlog.length + 1 });
-                  if (reason) {
-                    await apiAddComment(taskId, `Skipped: ${reason}`);
-                  }
-                }}
-              />
-            ) : (
-              <EmptyState onAdd={() => setShowTaskForm(true)} />
-            )}
-            {tasks.loading ? (
-              <p style={{ fontSize: 14, color: 'var(--text-4)', marginTop: 24 }}>Loading tasks...</p>
-            ) : (
-              <Backlog
-                tasks={tasks.backlog.map(t => {
-                  const blockedByTitles = (t.blocked_by || [])
-                    .map(id => taskTitleMap[id])
-                    .filter((title): title is string => !!title);
-                  const member = t.assignee ? memberMap[t.assignee] : null;
-                  return {
-                    id: t.id,
-                    title: t.title,
-                    description: t.description || '',
-                    type: t.type,
-                    mode: t.mode,
-                    effort: t.effort,
-                    multiagent: t.multiagent,
-                    blocked: blockedByTitles.length > 0,
-                    blockedByTitles,
-                    blockedByIds: t.blocked_by || [],
-                    assignee: member
-                      ? { type: 'user', name: member.name, initials: member.initials }
-                      : { type: 'ai' },
-                    assigneeId: t.assignee,
-                    images: t.images || [],
-                    status: t.status,
-                    milestone_id: t.milestone_id,
-                  };
-                })}
-                onAddTask={() => setShowTaskForm(true)}
-                onEditTask={(task) => {
-                  setEditingTask({
-                    id: task.id,
-                    title: task.title,
-                    description: task.description,
-                    type: task.type,
-                    mode: task.mode,
-                    effort: task.effort,
-                    multiagent: task.multiagent,
-                    assignee: task.assigneeId,
-                    blocked_by: task.blockedByIds,
-                    images: task.images,
-                    milestone_id: task.milestone_id,
-                  });
-                }}
-                onUpdateTask={async (taskId, data) => {
-                  await tasks.updateTask(taskId, data);
-                }}
-                onSwapTasks={async (idA, idB) => {
-                  const taskA = tasks.backlog.find(t => t.id === idA);
-                  const taskB = tasks.backlog.find(t => t.id === idB);
-                  if (!taskA || !taskB) return;
-                  await Promise.all([
-                    updateTask(idA, { position: taskB.position }),
-                    updateTask(idB, { position: taskA.position }),
-                  ]);
-                  tasks.reload();
-                }}
-                onDeleteTask={async (taskId) => {
-                  await tasks.deleteTask(taskId);
-                }}
-                milestoneFilter={milestoneFilter}
-                milestones={milestones.active.map(m => ({ id: m.id, name: m.name }))}
-                onMilestoneFilter={setMilestoneFilter}
-              />
-            )}
-          </div>
-        </div>
-        <div style={{
-          padding: '56px 40px 100px',
-          borderLeft: '1px solid var(--divider)',
-        }}>
-          <JobsPanel
-            jobs={jobViews}
-            onTerminate={async (jobId) => {
-              if (confirm('Terminate this running job?')) {
-                await terminateJob(jobId);
-                jobs.reload();
-                tasks.reload();
-              }
-            }}
-            onReply={async (jobId, answer) => {
-              try {
-                await replyToJob(jobId, answer, projects.current?.local_path || '');
-                jobs.reload();
-                tasks.reload();
-              } catch (err: any) {
-                alert(err.message || 'Failed to send reply');
-              }
-            }}
-            onApprove={async (jobId, action) => {
-              try {
-                await approveJob(jobId);
-                const localPath = projects.current?.local_path || '';
-                if (action === 'commit') {
-                  await gitCommit(jobId, localPath);
-                } else if (action === 'commit_push') {
-                  await gitCommit(jobId, localPath);
-                  await gitPush(localPath);
-                } else if (action === 'branch_pr') {
-                  await gitPr(jobId, localPath);
-                }
-                jobs.reload();
-                tasks.reload();
-              } catch (err: any) {
-                alert(err.message || 'Failed to approve');
-              }
-            }}
-            onReject={async (jobId) => {
-              try {
-                await rejectJob(jobId, '');
-                jobs.reload();
-                tasks.reload();
-              } catch (err: any) {
-                alert(err.message || 'Failed to reject');
-              }
-            }}
-            onRevert={async (jobId) => {
-              if (confirm('Revert all file changes? This restores files to their state before the task ran.')) {
-                try {
-                  await revertJob(jobId, projects.current?.local_path || '');
-                  jobs.reload();
-                  tasks.reload();
-                } catch (err: any) {
-                  alert(err.message || 'Failed to revert');
-                }
-              }
-            }}
-            onDeleteJob={async (jobId) => {
-              try {
-                await deleteJob(jobId);
-                jobs.reload();
-              } catch (err: any) {
-                alert(err.message || 'Failed to dismiss job');
-              }
-            }}
-          />
-        </div>
-      </main>
+
+      <Board
+        workstreams={workstreams.workstreams}
+        tasks={tasks.tasks}
+        jobs={jobViews}
+        memberMap={memberMap}
+        onCreateWorkstream={async (name) => {
+          await workstreams.createWorkstream(name);
+        }}
+        onUpdateWorkstream={async (id, data) => {
+          await workstreams.updateWorkstream(id, data);
+        }}
+        onDeleteWorkstream={async (id) => {
+          await workstreams.deleteWorkstream(id);
+          tasks.reload();
+        }}
+        onAddTask={(workstreamId) => {
+          setTaskFormWorkstream(workstreamId);
+          setShowTaskForm(true);
+        }}
+        onRunWorkstream={async (workstreamId) => {
+          if (!projects.current?.id || !projects.current?.local_path) {
+            alert('Set a local folder path for this project first.');
+            return;
+          }
+          const wsTasks = tasks.tasks
+            .filter(t => t.workstream_id === workstreamId && ['backlog', 'todo'].includes(t.status) && t.mode === 'ai')
+            .sort((a, b) => a.position - b.position);
+          if (wsTasks.length === 0) {
+            alert('No runnable AI tasks in this workstream.');
+            return;
+          }
+          try {
+            await runTaskApi(wsTasks[0].id, projects.current.id, projects.current.local_path, true);
+            jobs.reload();
+            tasks.reload();
+          } catch (err: any) {
+            alert(err.message || 'Failed to start workstream');
+          }
+        }}
+        onRunTask={async (taskId) => {
+          if (!projects.current?.id || !projects.current?.local_path) {
+            alert('Set a local folder path for this project first.');
+            return;
+          }
+          try {
+            await runTaskApi(taskId, projects.current.id, projects.current.local_path, false);
+            jobs.reload();
+            tasks.reload();
+          } catch (err: any) {
+            alert(err.message || 'Failed to start task');
+          }
+        }}
+        onEditTask={(task) => {
+          setEditingTask({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            mode: task.mode,
+            effort: task.effort,
+            multiagent: task.multiagent,
+            assignee: task.assignee,
+            images: task.images,
+            workstream_id: task.workstream_id,
+            auto_continue: task.auto_continue,
+          });
+        }}
+        onDeleteTask={async (taskId) => {
+          await tasks.deleteTask(taskId);
+        }}
+        onUpdateTask={async (taskId, data) => {
+          await tasks.updateTask(taskId, data);
+        }}
+        onMoveTask={async (taskId, workstreamId, newPosition) => {
+          await updateTask(taskId, { workstream_id: workstreamId, position: newPosition });
+          tasks.reload();
+        }}
+        onTerminate={async (jobId) => {
+          if (confirm('Terminate this running job?')) {
+            await terminateJob(jobId);
+            jobs.reload();
+            tasks.reload();
+          }
+        }}
+        onReply={async (jobId, answer) => {
+          try {
+            await replyToJob(jobId, answer, projects.current?.local_path || '');
+            jobs.reload();
+            tasks.reload();
+          } catch (err: any) {
+            alert(err.message || 'Failed to send reply');
+          }
+        }}
+        onApprove={async (jobId, action) => {
+          try {
+            await approveJob(jobId);
+            const localPath = projects.current?.local_path || '';
+            if (action === 'commit') {
+              await gitCommit(jobId, localPath);
+            } else if (action === 'commit_push') {
+              await gitCommit(jobId, localPath);
+              await gitPush(localPath);
+            } else if (action === 'branch_pr') {
+              await gitPr(jobId, localPath);
+            }
+            jobs.reload();
+            tasks.reload();
+          } catch (err: any) {
+            alert(err.message || 'Failed to approve');
+          }
+        }}
+        onReject={async (jobId) => {
+          try {
+            await rejectJob(jobId, '');
+            jobs.reload();
+            tasks.reload();
+          } catch (err: any) {
+            alert(err.message || 'Failed to reject');
+          }
+        }}
+        onRevert={async (jobId) => {
+          if (confirm('Revert all file changes? This restores files to their state before the task ran.')) {
+            try {
+              await revertJob(jobId, projects.current?.local_path || '');
+              jobs.reload();
+              tasks.reload();
+            } catch (err: any) {
+              alert(err.message || 'Failed to revert');
+            }
+          }
+        }}
+        onDeleteJob={async (jobId) => {
+          try {
+            await deleteJob(jobId);
+            jobs.reload();
+          } catch (err: any) {
+            alert(err.message || 'Failed to dismiss job');
+          }
+        }}
+      />
 
       {showTaskForm && projects.current && (
         <TaskForm
           localPath={projects.current?.local_path}
-          milestones={milestones.active.map(m => ({ id: m.id, name: m.name }))}
+          workstreams={workstreams.active.map(w => ({ id: w.id, name: w.name }))}
+          defaultWorkstreamId={taskFormWorkstream}
           members={members.members.map(m => ({ id: m.id, name: m.name, initials: m.initials }))}
           existingTasks={tasks.tasks
             .filter(t => t.status !== 'done' && t.status !== 'canceled')
@@ -429,19 +345,19 @@ export default function App() {
               effort: data.effort as any,
               multiagent: data.multiagent,
               assignee: data.assignee,
-              blocked_by: data.blocked_by,
+              auto_continue: data.auto_continue,
               images: data.images,
-              milestone_id: data.milestone_id,
+              workstream_id: data.workstream_id,
             });
           }}
-          onClose={() => setShowTaskForm(false)}
+          onClose={() => { setShowTaskForm(false); setTaskFormWorkstream(null); }}
         />
       )}
 
       {editingTask && projects.current && (
         <TaskForm
           localPath={projects.current?.local_path}
-          milestones={milestones.active.map(m => ({ id: m.id, name: m.name }))}
+          workstreams={workstreams.active.map(w => ({ id: w.id, name: w.name }))}
           members={members.members.map(m => ({ id: m.id, name: m.name, initials: m.initials }))}
           existingTasks={tasks.tasks
             .filter(t => t.status !== 'done' && t.status !== 'canceled' && t.id !== editingTask.id)
@@ -457,9 +373,9 @@ export default function App() {
               effort: data.effort,
               multiagent: data.multiagent,
               assignee: data.assignee,
-              blocked_by: data.blocked_by,
+              auto_continue: data.auto_continue,
               images: data.images,
-              milestone_id: data.milestone_id,
+              workstream_id: data.workstream_id,
             });
           }}
           onClose={() => setEditingTask(null)}
@@ -490,22 +406,6 @@ function Loading({ text }: { text: string }) {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-3)', fontSize: 15 }}>
       {text}
-    </div>
-  );
-}
-
-function EmptyState({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div style={{ marginBottom: 72 }}>
-      <p style={{ fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--blue)', marginBottom: 20 }}>Now</p>
-      <h1 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 16 }}>Nothing to do</h1>
-      <p style={{ fontSize: 15, color: 'var(--text-2)', marginBottom: 32 }}>Add a task to get started.</p>
-      <button
-        onClick={onAdd}
-        style={{ padding: '10px 28px', background: 'var(--text)', color: 'var(--bg)', border: 'none', borderRadius: 8, fontFamily: 'var(--font)', fontSize: 15, fontWeight: 600, cursor: 'pointer' }}
-      >
-        New Task
-      </button>
     </div>
   );
 }
