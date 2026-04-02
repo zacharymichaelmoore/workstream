@@ -36,7 +36,7 @@
 }
 .project:hover { background: var(--bg-hover); color: var(--text); }
 .caret {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--text-3);
   transition: transform 0.15s ease;
 }

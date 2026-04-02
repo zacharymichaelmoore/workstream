@@ -128,13 +128,21 @@ export async function getMembers(projectId: string) {
   return apiFetch(`/api/members?project_id=${projectId}`) as Promise<{ id: string; name: string; initials: string; role: string }[]>;
 }
 
-// --- Milestones ---
-export async function getMilestones(projectId: string) {
-  return apiFetch(`/api/milestones?project_id=${projectId}`);
+// --- Workstreams ---
+export async function getWorkstreams(projectId: string) {
+  return apiFetch(`/api/workstreams?project_id=${projectId}`);
 }
 
-export async function createMilestone(projectId: string, name: string, deadline?: string) {
-  return apiFetch('/api/milestones', { method: 'POST', body: JSON.stringify({ project_id: projectId, name, deadline }) });
+export async function createWorkstream(projectId: string, name: string) {
+  return apiFetch('/api/workstreams', { method: 'POST', body: JSON.stringify({ project_id: projectId, name }) });
+}
+
+export async function updateWorkstream(id: string, data: Record<string, unknown>) {
+  return apiFetch(`/api/workstreams/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+}
+
+export async function deleteWorkstream(id: string) {
+  return apiFetch(`/api/workstreams/${id}`, { method: 'DELETE' });
 }
 
 // --- Tasks ---
@@ -151,9 +159,9 @@ export async function createTask(data: {
   effort?: string;
   multiagent?: string;
   assignee?: string | null;
-  blocked_by?: string[];
+  auto_continue?: boolean;
   images?: string[];
-  milestone_id?: string | null;
+  workstream_id?: string | null;
 }) {
   return apiFetch('/api/tasks', { method: 'POST', body: JSON.stringify(data) });
 }
@@ -171,8 +179,8 @@ export async function getJobs(projectId: string) {
   return apiFetch(`/api/jobs?project_id=${projectId}`);
 }
 
-export async function runTaskApi(taskId: string, projectId: string, localPath: string) {
-  return apiFetch('/api/run', { method: 'POST', body: JSON.stringify({ taskId, projectId, localPath }) });
+export async function runTaskApi(taskId: string, projectId: string, localPath: string, autoContinue?: boolean) {
+  return apiFetch('/api/run', { method: 'POST', body: JSON.stringify({ taskId, projectId, localPath, autoContinue }) });
 }
 
 export async function replyToJob(jobId: string, answer: string, localPath: string) {

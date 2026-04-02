@@ -1,0 +1,30 @@
+.replyRow { display: flex; gap: 10px; align-items: stretch; }
+
+.replyInput {
+  flex: 1;
+  padding: 8px 14px;
+  background: white;
+  border: 1.5px solid var(--divider);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.replySend {
+  padding: 8px 18px;
+  background: var(--text);
+  color: var(--bg);
+  border: 1.5px solid var(--text);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.replySend:hover { opacity: 0.8; }

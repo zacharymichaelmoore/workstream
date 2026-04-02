@@ -1,0 +1,85 @@
+/* ─── Board: Horizontal Kanban layout ─── */
+.board {
+  display: flex;
+  gap: 20px;
+  padding: 28px 32px 100px;
+  min-height: calc(100vh - 57px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: flex-start;
+  scroll-behavior: smooth;
+}
+
+/* Custom thin scrollbar for the board track */
+.board::-webkit-scrollbar {
+  height: 6px;
+}
+.board::-webkit-scrollbar-track {
+  background: transparent;
+}
+.board::-webkit-scrollbar-thumb {
+  background: var(--divider);
+  border-radius: 3px;
+}
+.board::-webkit-scrollbar-thumb:hover {
+  background: var(--text-4);
+}
+
+/* The "+ Add workstream" button at the end */
+.addColumn {
+  flex: 0 0 260px;
+  min-width: 260px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--divider);
+  border-radius: 14px;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-4);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.addColumn:hover {
+  color: var(--text-3);
+  border-color: var(--text-4);
+  background: var(--bg-hover);
+}
+.addColumn svg {
+  transition: transform 0.15s;
+}
+.addColumn:hover svg {
+  transform: scale(1.1);
+}
+
+/* New workstream inline form */
+.addForm {
+  flex: 0 0 auto;
+  min-width: 260px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.addInput {
+  flex: 1;
+  padding: 8px 14px;
+  border: 1.5px solid var(--divider);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.15s;
+}
+.addInput:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px var(--blue-bg);
+}
+.addInput::placeholder {
+  color: var(--text-4);
+}

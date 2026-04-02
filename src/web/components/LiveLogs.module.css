@@ -1,0 +1,50 @@
+/* Connection status bar */
+.connBar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  transition: opacity 0.4s;
+}
+.connDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.connConnecting .connDot { background: var(--amber); }
+.connConnecting { color: var(--amber); }
+.connOpen .connDot { background: var(--green); }
+.connOpen { color: var(--green); }
+.connError .connDot { background: var(--red); }
+.connError { color: var(--red); }
+.connHidden { opacity: 0; pointer-events: none; }
+
+/* --- Live logs --- */
+.logBox {
+  max-height: 200px;
+  overflow: auto;
+  background: var(--bg-active);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Mono', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-2);
+}
+.logLine { }
+.logPhase {
+  color: var(--blue);
+  font-weight: 600;
+}
+
+/* No output yet state */
+.noOutput {
+  color: var(--text-4);
+  font-style: italic;
+  font-family: var(--font);
+  font-size: 12px;
+}
