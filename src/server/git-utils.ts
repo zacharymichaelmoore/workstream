@@ -1,4 +1,4 @@
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 
 const execFileAsync = promisify(execFile);
@@ -11,8 +11,7 @@ export async function git(args: string[], cwd: string, timeout = 15000): Promise
 
 /** Run a git command synchronously. Returns trimmed stdout. Use only in worker callbacks. */
 export function gitSync(args: string[], cwd: string, timeout = 15000): string {
-  const { execFileSync } = require('child_process');
-  return execFileSync('git', args, { cwd, encoding: 'utf-8', timeout }).trim();
+  return execFileSync('git', args, { cwd, encoding: 'utf-8', timeout }).toString().trim();
 }
 
 /** Slugify a string for branch names and directory paths. */

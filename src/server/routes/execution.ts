@@ -16,14 +16,17 @@ executionRouter.post('/api/run', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'taskId, projectId, and localPath are required' });
   }
 
-  // Validate localPath against the user's registered path for this project
+  // Validate membership and localPath
   const userId = (req as any).userId;
   const { data: membership } = await supabase
     .from('project_members')
-    .select('local_path')
+    .select('local_path, role')
     .eq('project_id', projectId)
     .eq('user_id', userId)
     .single();
+  if (membership?.role === 'manager') {
+    return res.status(403).json({ error: 'Managers cannot run AI tasks' });
+  }
   if (membership && membership.local_path && membership.local_path !== localPath) {
     return res.status(403).json({ error: 'localPath does not match your registered project path' });
   }
@@ -253,9 +256,15 @@ executionRouter.post('/api/jobs/:id/reject', requireAuth, async (req, res) => {
   const { data: job } = await supabase.from('jobs').select('*').eq('id', jobId).single();
   if (!job) return res.status(404).json({ error: 'Job not found' });
 
+  // Clean up checkpoint on rejection
+  if (job.local_path) {
+    try { deleteCheckpoint(job.local_path, jobId); } catch {}
+  }
+
   await supabase.from('jobs').update({
     status: 'done',
     completed_at: new Date().toISOString(),
+    checkpoint_status: 'cleaned',
   }).eq('id', jobId);
 
   await supabase.from('tasks').update({

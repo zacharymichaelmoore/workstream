@@ -196,8 +196,26 @@ Description: ${task.description || 'No description provided.'}
     analyze: 'Analyze the codebase to understand the problem. Identify the root cause and location. Output a structured summary of your findings.',
     fix: 'Fix the issue based on the analysis. Make the minimal changes needed. Run tests if available.',
     implement: 'Implement the feature described above. Follow existing code patterns. Run tests if available.',
-    verify: 'Run the test suite and verify the changes work. Report pass/fail and any remaining issues.',
-    review: 'Review the changes made. Check code quality, architecture alignment, and completeness. Report any issues.',
+    verify: `Run the test suite and verify the changes work. Report any issues found.
+
+IMPORTANT: You MUST end your response with a JSON verdict block:
+\`\`\`json
+{"passed": true}
+\`\`\`
+or if tests fail:
+\`\`\`json
+{"passed": false, "reason": "Brief description of what failed"}
+\`\`\``,
+    review: `Review the changes made. Check code quality, architecture alignment, and completeness.
+
+IMPORTANT: You MUST end your response with a JSON verdict block:
+\`\`\`json
+{"passed": true}
+\`\`\`
+or if issues found:
+\`\`\`json
+{"passed": false, "reason": "Brief description of issues"}
+\`\`\``,
     refactor: 'Refactor the code as described. Maintain all existing behavior. Run tests to verify nothing broke.',
     'write-tests': 'Write tests for the described functionality. Follow existing test patterns in the project.',
   };
@@ -277,6 +295,65 @@ Description: ${task.description || 'No description provided.'}
 
   return prompt;
 }
+
+// --- Structured verdict parsing for verify/review phases ---
+
+interface PhaseVerdict {
+  passed: boolean;
+  reason: string;
+}
+
+/** Extract the last JSON verdict block from Claude's output. */
+function extractVerdict(output: string): PhaseVerdict | null {
+  const fenced = /```(?:json)?\s*(\{[\s\S]*?\})\s*```/g;
+  let last: PhaseVerdict | null = null;
+  let m;
+  while ((m = fenced.exec(output)) !== null) {
+    try {
+      const parsed = JSON.parse(m[1]);
+      if (typeof parsed.passed === 'boolean') {
+        last = { passed: parsed.passed, reason: parsed.reason || '' };
+      }
+    } catch { /* skip */ }
+  }
+  if (last) return last;
+  const lines = output.trim().split('\n');
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
+    const line = lines[i].trim();
+    if (line.startsWith('{') && line.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(line);
+        if (typeof parsed.passed === 'boolean') {
+          return { passed: parsed.passed, reason: parsed.reason || '' };
+        }
+      } catch { /* skip */ }
+    }
+  }
+  return null;
+}
+
+function legacyVerifyCheck(output: string): boolean {
+  const lower = output.toLowerCase();
+  const hasFail = /\bfail\b|tests?\s+fail/.test(lower);
+  const hasError = lower.includes('error') || lower.includes('not passing');
+  const excluded = lower.includes('no failures') || lower.includes('0 failed') || lower.includes('fixed');
+  return (hasFail || hasError) && !excluded;
+}
+
+function legacyReviewCheck(output: string): boolean {
+  const lower = output.toLowerCase();
+  const hasIssues = /issues?\s+found/.test(lower);
+  const hasFail = lower.includes('fail') || lower.includes('problem') || lower.includes('reject');
+  const excluded = lower.includes('no issues found') || lower.includes('no issues') || lower.includes('0 issues');
+  return (hasIssues || hasFail) && !excluded;
+}
+
+/** Shared env for spawned claude processes. Ensures PATH includes ~/.local/bin for systemd. */
+const claudeEnv = {
+  ...process.env,
+  TERM: 'dumb',
+  PATH: `${process.env.HOME}/.local/bin:${process.env.PATH}`,
+};
 
 // Active processes for cancellation
 const activeProcesses = new Map<string, ChildProcess>();
@@ -367,6 +444,7 @@ export async function runJob(ctx: JobContext): Promise<void> {
 
     const phaseConfig = taskType.phase_config[phase];
     if (!phaseConfig) {
+      await supabase.from('tasks').update({ status: 'backlog' }).eq('id', task.id);
       onFail(`No config for phase: ${phase}`);
       return;
     }
@@ -389,6 +467,12 @@ export async function runJob(ctx: JobContext): Promise<void> {
       const args = ['-p', '--verbose', '--max-turns', '20', '--output-format', 'stream-json'];
       if (phaseConfig.tools.length > 0) {
         args.push('--allowedTools', phaseConfig.tools.join(','));
+        // Explicitly block write tools for read-only phases
+        const writeTools = ['Edit', 'Write', 'NotebookEdit', 'Agent'];
+        const blocked = writeTools.filter(t => !phaseConfig.tools.includes(t));
+        if (blocked.length > 0) {
+          args.push('--disallowedTools', blocked.join(','));
+        }
       }
 
       // Model selection per phase
@@ -427,75 +511,67 @@ export async function runJob(ctx: JobContext): Promise<void> {
           return;
         }
 
-        // Verify phase: check if output indicates failure
+        // Verify phase: check if tests passed
         if (phase === 'verify') {
-          const lower = output.toLowerCase();
-          const hasFail = /\bfail\b|tests?\s+fail/.test(lower);
-          const hasError = lower.includes('error') || lower.includes('not passing');
-          const excluded = lower.includes('no failures') || lower.includes('0 failed') || lower.includes('fixed');
-          const failed = (hasFail || hasError) && !excluded;
+          const verdict = extractVerdict(output);
+          const failed = verdict ? !verdict.passed : legacyVerifyCheck(output);
+          const reason = verdict?.reason || 'verification failed (see output)';
           if (failed && attempt < maxAttempts) {
-            // Jump back to the on_verify_fail phase instead of re-running verify
             const jumpTarget = taskType.on_verify_fail;
             const jumpIndex = allPhases.indexOf(jumpTarget);
             if (jumpIndex >= 0 && jumpIndex < i) {
-              onLog(`\nVerify failed, jumping back to '${jumpTarget}' phase...\n`);
-              // Remove the jump target from completed so it re-runs
+              onLog(`\nVerify failed: ${reason}. Jumping back to '${jumpTarget}'...\n`);
               completedPhaseNames.delete(jumpTarget);
               i = jumpIndex;
-              // Break out of the attempt loop; the outer while-loop will land on jumpTarget
               break;
             } else {
-              onLog(`\nVerify failed, retrying...\n`);
-              continue; // Retry verify if jump target not found
+              onLog(`\nVerify failed: ${reason}. Retrying...\n`);
+              continue;
             }
           }
           if (failed && attempt >= maxAttempts) {
             if (taskType.on_max_retries === 'pause') {
+              const pauseMsg = `Tests still failing after ${maxAttempts} attempts: ${reason}`;
               await supabase.from('jobs').update({
                 status: 'paused',
-                question: `Tests still failing after ${maxAttempts} attempts. Last output:\n${lastLines}`,
+                question: pauseMsg,
                 phases_completed: phasesCompleted,
               }).eq('id', jobId);
               await supabase.from('tasks').update({ status: 'paused' }).eq('id', task.id);
-              onPause(`Tests still failing after ${maxAttempts} attempts.`);
+              onPause(pauseMsg);
               return;
             }
           }
         }
 
-        // Review/final phase: check if output indicates failure
+        // Review/final phase: check if review passed
         if (phase === taskType.final) {
-          const lower = output.toLowerCase();
-          const hasIssues = /issues?\s+found/.test(lower);
-          const hasFail = lower.includes('fail') || lower.includes('problem') || lower.includes('reject');
-          const excluded = lower.includes('no issues found') || lower.includes('no issues') || lower.includes('0 issues');
-          const failed = (hasIssues || hasFail) && !excluded;
+          const verdict = extractVerdict(output);
+          const failed = verdict ? !verdict.passed : legacyReviewCheck(output);
+          const reason = verdict?.reason || 'review found issues (see output)';
           if (failed && attempt < maxAttempts) {
-            // Jump back to the on_review_fail phase instead of re-running review
             const jumpTarget = taskType.on_review_fail;
             const jumpIndex = allPhases.indexOf(jumpTarget);
             if (jumpIndex >= 0 && jumpIndex < i) {
-              onLog(`\nReview failed, jumping back to '${jumpTarget}' phase...\n`);
-              // Remove the jump target from completed so it re-runs
+              onLog(`\nReview failed: ${reason}. Jumping back to '${jumpTarget}'...\n`);
               completedPhaseNames.delete(jumpTarget);
               i = jumpIndex;
-              // Break out of the attempt loop; the outer while-loop will land on jumpTarget
               break;
             } else {
-              onLog(`\nReview failed, retrying...\n`);
-              continue; // Retry review if jump target not found
+              onLog(`\nReview failed: ${reason}. Retrying...\n`);
+              continue;
             }
           }
           if (failed && attempt >= maxAttempts) {
             if (taskType.on_max_retries === 'pause') {
+              const pauseMsg = `Review still failing after ${maxAttempts} attempts: ${reason}`;
               await supabase.from('jobs').update({
                 status: 'paused',
-                question: `Review still failing after ${maxAttempts} attempts. Last output:\n${lastLines}`,
+                question: pauseMsg,
                 phases_completed: phasesCompleted,
               }).eq('id', jobId);
               await supabase.from('tasks').update({ status: 'paused' }).eq('id', task.id);
-              onPause(`Review still failing after ${maxAttempts} attempts.`);
+              onPause(pauseMsg);
               return;
             }
           }
@@ -508,20 +584,28 @@ export async function runJob(ctx: JobContext): Promise<void> {
       } catch (err: any) {
         onLog(`\nError in phase ${phase}: ${err.message}\n`);
         if (attempt >= maxAttempts) {
-          let failMessage = `Job failed: ${err.message}`;
+          let failMessage = `Phase '${phase}' failed: ${err.message}`;
+          let revertSucceeded = false;
           try {
             const { revertToCheckpoint } = await import('./checkpoint.js');
             revertToCheckpoint(localPath, jobId);
             onLog('[checkpoint] Auto-reverted changes after failure\n');
             failMessage += '. Changes have been automatically reverted.';
-          } catch { /* ignore revert failure */ }
+            revertSucceeded = true;
+          } catch (revertErr: any) {
+            onLog(`[checkpoint] Could not revert: ${revertErr.message}\n`);
+            failMessage += '. WARNING: Changes were NOT reverted — manual cleanup may be needed.';
+          }
           await supabase.from('jobs').update({
             status: 'failed',
             phases_completed: phasesCompleted,
             completed_at: new Date().toISOString(),
             question: failMessage,
+            checkpoint_status: revertSucceeded ? 'reverted' : 'active',
           }).eq('id', jobId);
-          onFail(err.message);
+          // Runner is sole authority: always update task status on failure
+          await supabase.from('tasks').update({ status: 'backlog' }).eq('id', ctx.taskId);
+          onFail(failMessage);
           return;
         }
       }
@@ -654,7 +738,7 @@ function generateSummary(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = spawn('claude', ['-p', '--output-format', 'text', '--max-turns', '1', '--model', 'sonnet'], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, TERM: 'dumb', PATH: `${process.env.HOME}/.local/bin:${process.env.PATH}` },
+      env: claudeEnv,
       timeout: 30000,
     });
 
@@ -675,7 +759,7 @@ function spawnClaude(jobId: string, args: string[], cwd: string, onLog: (text: s
     const proc = spawn('claude', args, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, TERM: 'dumb' },
+      env: claudeEnv,
     });
 
     activeProcesses.set(jobId, proc);
@@ -715,8 +799,10 @@ function spawnClaude(jobId: string, args: string[], cwd: string, onLog: (text: s
       }
     });
 
+    let stderrBuffer = '';
     proc.stderr.on('data', (data: Buffer) => {
       const text = data.toString();
+      stderrBuffer += text;
       if (!text.includes('stdin') && !text.includes('Warning')) {
         onLog(text);
       }
@@ -737,7 +823,12 @@ function spawnClaude(jobId: string, args: string[], cwd: string, onLog: (text: s
       if (code === 0 || code === null) {
         resolve(fullOutput);
       } else {
-        reject(new Error(`claude exited with code ${code}`));
+        // Include stderr in error for diagnosability
+        const stderrClean = stderrBuffer.trim().split('\n')
+          .filter(l => !l.includes('stdin') && !l.includes('Warning'))
+          .slice(-10).join('\n');
+        const detail = stderrClean ? `\n${stderrClean}` : '';
+        reject(new Error(`claude exited with code ${code}${detail}`));
       }
     });
 

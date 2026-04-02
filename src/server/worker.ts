@@ -156,7 +156,19 @@ async function startJob(job: any): Promise<void> {
       }).eq('id', jobId);
       await writeLog(jobId, 'log', { text: '[checkpoint] Saved working directory state' });
     } catch (err: any) {
-      await writeLog(jobId, 'log', { text: `[checkpoint] Warning: ${err.message}` });
+      if (task.auto_continue) {
+        // Fatal for auto-continue: no checkpoint = no safety net
+        const failMsg = `Checkpoint failed: ${err.message}. Cannot run auto-continue without a safety net.`;
+        await writeLog(jobId, 'failed', { error: failMsg });
+        await supabase.from('jobs').update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          question: failMsg,
+        }).eq('id', jobId);
+        await supabase.from('tasks').update({ status: 'backlog' }).eq('id', task.id);
+        return;
+      }
+      await writeLog(jobId, 'log', { text: `[checkpoint] Warning: ${err.message}. Manual revert will not be available.` });
     }
   }
 
@@ -217,11 +229,15 @@ async function startJob(job: any): Promise<void> {
       onReview,
     });
   } catch (err: any) {
-    await writeLog(jobId, 'failed', { error: err.message });
+    // This catch only fires if runJob() itself throws an unhandled error
+    // (e.g., a bug in the runner code). Phase failures are handled inside
+    // runJob() which updates both job and task status directly.
+    console.error(`[worker] Unexpected runner crash for job ${jobId}:`, err.message);
+    await writeLog(jobId, 'failed', { error: `Runner crashed: ${err.message}` });
     await supabase.from('jobs').update({
       status: 'failed',
       completed_at: new Date().toISOString(),
-      question: `Job failed: ${err.message}`,
+      question: `Unexpected error: ${err.message}`,
     }).eq('id', jobId);
     await supabase.from('tasks').update({ status: 'backlog' }).eq('id', task.id);
   }
