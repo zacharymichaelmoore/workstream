@@ -292,7 +292,7 @@ dataRouter.post('/api/tasks', requireAuth, async (req, res) => {
 });
 
 dataRouter.patch('/api/tasks/:id', requireAuth, async (req, res) => {
-  const allowed = ['title', 'description', 'type', 'mode', 'effort', 'multiagent', 'status', 'assignee', 'workstream_id', 'position', 'images', 'followup_notes', 'auto_continue', 'priority', 'flow_id', 'chaining'];
+  const allowed = ['title', 'description', 'type', 'mode', 'effort', 'multiagent', 'status', 'assignee', 'workstream_id', 'position', 'images', 'followup_notes', 'auto_continue', 'priority', 'flow_id', 'chaining', 'ai_cli'];
   const updates: Record<string, any> = {};
   for (const key of allowed) {
     if (key in req.body) updates[key] = req.body[key];
@@ -614,15 +614,18 @@ export function discoverSkills(localPath?: string): SkillInfo[] {
   // Project-level commands (highest priority)
   if (localPath) {
     addFromDir(join(localPath, '.claude', 'commands'), 'project');
+    addFromDir(join(localPath, '.opencode', 'commands'), 'project');
   }
 
   // Global user commands
   const home = homedir();
   addFromDir(join(home, '.claude', 'commands'), 'global');
+  addFromDir(join(home, '.opencode', 'commands'), 'global');
 
   // Installed plugins
-  const pluginsDir = join(home, '.claude', 'plugins', 'marketplaces');
-  if (existsSync(pluginsDir)) {
+  const pluginsDirs = [join(home, '.claude', 'plugins', 'marketplaces'), join(home, '.opencode', 'plugins', 'marketplaces')];
+  for (const pluginsDir of pluginsDirs) {
+    if (existsSync(pluginsDir)) {
     try {
       for (const marketplace of readdirSync(pluginsDir)) {
         const mpPlugins = join(pluginsDir, marketplace, 'plugins');
@@ -658,11 +661,13 @@ export function discoverSkills(localPath?: string): SkillInfo[] {
                 seen.add(skillName);
                 skills.push({ name: `${plugin}:${skillName}`, description: meta.description, source: plugin, filePath });
               }
-            } catch { /* skip */ }
+                } catch { /* skip */ }
+  }
           }
         }
       }
-    } catch { /* skip */ }
+        } catch { /* skip */ }
+  }
   }
 
   return skills;
@@ -773,7 +778,7 @@ or if issues found:
 \`\`\``,
 };
 
-const EXECUTE_CONTEXT = ['claude_md', 'agents_md', 'task_description', 'skills', 'task_images', 'followup_notes'];
+const EXECUTE_CONTEXT = ['claude_md', 'opencode_md', 'agents_md', 'task_description', 'skills', 'task_images', 'followup_notes'];
 
 /** Maps task types to the default flow name that should handle them. */
 export const TYPE_TO_FLOW_NAME: Record<string, string> = {

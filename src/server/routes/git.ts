@@ -6,7 +6,7 @@ import { requireAuth } from '../auth-middleware.js';
 import { cleanupWorktree } from '../worktree.js';
 import { git, slugify, commitMessage } from '../git-utils.js';
 import { broadcast } from './data.js';
-import { claudeEnv } from '../runner.js';
+import { agentEnv } from '../runner.js';
 
 export const gitRouter = Router();
 
@@ -99,10 +99,13 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
   try {
     const { data: ws } = await supabase
       .from('workstreams')
-      .select('id, name, project_id')
+      .select('id, name, project_id, project:project_id(ai_cli)')
       .eq('id', workstreamId)
       .single();
     if (!ws) return res.status(404).json({ error: 'Workstream not found' });
+
+    // Determine the cli command (prefer project setting if available)
+    const aiCli = (ws.project as any)?.ai_cli || 'opencode';
 
     // Set workstream status to reviewing
     await supabase.from('workstreams').update({ status: 'reviewing' }).eq('id', workstreamId);
@@ -113,7 +116,7 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
     const slug = slugify(ws.name);
     const branch = `workstream/${slug}`;
 
-    // Step 1: Run code review via claude -p
+    // Step 1: Run code review via opencode/claude -p
     const reviewPrompt = `You are reviewing all changes in this branch before a PR is created.
 
 Run /code-review to review all changes on this branch compared to main.
@@ -123,10 +126,10 @@ After fixing, run the tests to make sure everything still passes.
 At the end, output a brief summary of what was reviewed and what was fixed (if anything).`;
 
     await new Promise<string>((resolve, reject) => {
-      const proc = spawn('claude', ['-p', '--output-format', 'text', '--max-turns', '30', '--model', 'opus'], {
+      const proc = spawn(aiCli, ['-p', '--output-format', 'text', '--max-turns', '30', '--model', 'opus'], {
         cwd: localPath,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: claudeEnv,
+        env: agentEnv,
       });
       let stdout = '';
       let stderrTail = '';
@@ -137,7 +140,7 @@ At the end, output a brief summary of what was reviewed and what was fixed (if a
         if (settled) return;
         settled = true;
         proc.kill();
-        reject(new Error(`Review claude timed out after 10 minutes. stderr: ${stderrTail}`));
+        reject(new Error(`Review ${aiCli} timed out after 10 minutes. stderr: ${stderrTail}`));
       }, 10 * 60 * 1000);
 
       proc.stdin.write(reviewPrompt);
@@ -154,7 +157,7 @@ At the end, output a brief summary of what was reviewed and what was fixed (if a
         settled = true;
         clearTimeout(timeout);
         if (code === 0 || code === null) resolve(stdout);
-        else reject(new Error(`Review claude exited with code ${code}. stderr: ${stderrTail}`));
+        else reject(new Error(`Review ${aiCli} exited with code ${code}. stderr: ${stderrTail}`));
       });
       proc.on('error', (err) => {
         if (settled) return;
