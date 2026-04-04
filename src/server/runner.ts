@@ -1553,6 +1553,7 @@ function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: st
       // Replace claude-specific flags with opencode equivalents
       finalArgs = finalArgs.map(arg => {
         if (arg === '-p') return 'run'; // Opencode uses 'run' command
+        if (arg === '--verbose') return '--print-logs'; // Opencode uses print-logs
         if (arg === '--output-format') return '--format';
         if (arg === 'stream-json') return 'json'; // Opencode uses 'json' instead of 'stream-json'
         if (arg === '--allowedTools') return '--allowed-tools'; // Minor flag casing diffs if any
