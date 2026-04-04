@@ -843,7 +843,7 @@ export function WorkstreamColumn({
         <div className={s.completeBanner}>
           <span>&#10003; All tasks complete</span>
           {workstream?.has_code !== false && onCreatePr && (
-            <button className="btn btnPrimary btnSm" onClick={onCreatePr}>Review &amp; Create PR</button>
+            <button className="btn btnPrimary btnSm" onClick={() => onCreatePr(workstream.id)}>Review &amp; Create PR</button>
           )}
         </div>
       )}
@@ -870,7 +870,7 @@ export function WorkstreamColumn({
         <div className={`${s.completeBanner} ${s.failedBanner}`}>
           <span>Review failed</span>
           {onCreatePr && (
-            <button className="btn btnDanger btnSm" onClick={onCreatePr}>Retry</button>
+            <button className="btn btnDanger btnSm" onClick={() => onCreatePr(workstream.id)}>Retry</button>
           )}
         </div>
       )}
