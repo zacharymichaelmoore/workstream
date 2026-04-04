@@ -1,8 +1,59 @@
 import { spawn, ChildProcess, execFileSync } from 'child_process';
-import { readFileSync, existsSync, readdirSync, statSync, unlinkSync, rmdirSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, rmSync } from 'fs';
 import { join } from 'path';
 import { supabase } from './supabase.js';
 import { discoverSkills } from './routes/data.js';
+
+const MIME_MAP: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  svg: 'image/svg+xml', webp: 'image/webp', pdf: 'application/pdf',
+  md: 'text/markdown', txt: 'text/plain', json: 'application/json',
+  csv: 'text/csv', html: 'text/html', mp4: 'video/mp4', mp3: 'audio/mpeg',
+};
+
+/** Scan .artifacts/ directory, upload to storage, insert records, then clean up. */
+async function scanAndUploadArtifacts(
+  localPath: string,
+  taskId: string,
+  jobId: string,
+  lastPhase: string,
+  onLog: (text: string) => void,
+): Promise<void> {
+  const artifactsDir = join(localPath, '.artifacts');
+  if (!existsSync(artifactsDir)) return;
+
+  const files = readdirSync(artifactsDir);
+  const { data: taskRow } = await supabase.from('tasks').select('project_id').eq('id', taskId).single();
+  if (!taskRow?.project_id) {
+    onLog(`[artifact] Skipping artifacts: could not resolve project_id\n`);
+    return;
+  }
+
+  for (const filename of files) {
+    const filePath = join(artifactsDir, filename);
+    try {
+      const fileStat = statSync(filePath);
+      if (!fileStat.isFile()) continue;
+      const fileBuffer = readFileSync(filePath);
+      const ext = filename.split('.').pop()?.toLowerCase() || '';
+      const mimeType = MIME_MAP[ext] || 'application/octet-stream';
+      const storagePath = `${taskRow.project_id}/${taskId}/${filename}`;
+
+      await supabase.storage.from('task-artifacts').upload(storagePath, fileBuffer, {
+        contentType: mimeType, upsert: true,
+      });
+      await supabase.from('task_artifacts').insert({
+        task_id: taskId, job_id: jobId, phase: lastPhase,
+        filename, mime_type: mimeType, size_bytes: fileStat.size, storage_path: storagePath,
+      });
+      onLog(`[artifact] Captured: ${filename} (${mimeType}, ${fileStat.size} bytes)\n`);
+    } catch (err: any) {
+      onLog(`[artifact] Failed to capture ${filename}: ${err.message}\n`);
+    }
+  }
+  // Clean up
+  try { rmSync(artifactsDir, { recursive: true, force: true }); } catch { /* best effort */ }
+}
 
 interface PhaseConfig {
   skill: string | null;
@@ -253,6 +304,11 @@ async function buildStepPrompt(
         if (task._ragResults?.length > 0) prompt += formatRagResults(task._ragResults);
         prompt += `## Document Search Tool\nYou can search project documents for specific information using the Bash tool:\n\`\`\`\nnpx tsx src/server/rag-cli.ts ${task.project_id} "your search query"\n\`\`\`\nUse targeted queries to find rules, lore, specs, or any project documentation. You can run multiple searches.\n\n`;
         break;
+      case 'gate_feedback':
+        if (task._gateFeedback) {
+          prompt += `## Previous Step Feedback (retry reason)\n${task._gateFeedback}\n\n`;
+        }
+        break;
       case 'all_previous_steps':
         if (previousOutputs.length > 0) {
           prompt += '## Previous Phase Outputs\n';
@@ -384,6 +440,7 @@ export async function runFlowJob(ctx: FlowJobContext): Promise<void> {
       await supabase.from('jobs').update({
         current_phase: step.name,
         attempt,
+        question: null,
       }).eq('id', jobId);
 
       const prompt = await buildStepPrompt(step, flow, task, phasesCompleted, localPath, task.answer);
@@ -410,6 +467,7 @@ export async function runFlowJob(ctx: FlowJobContext): Promise<void> {
           output: output.substring(0, 10000),
         };
         phasesCompleted.push(phaseOutput);
+        await supabase.from('jobs').update({ phases_completed: phasesCompleted }).eq('id', jobId);
         onPhaseComplete(step.name, phaseOutput);
 
         // Check if agent asked a question
@@ -442,21 +500,32 @@ export async function runFlowJob(ctx: FlowJobContext): Promise<void> {
             if (step.on_fail_jump_to != null) {
               const jumpIndex = steps.findIndex(s => s.position === step.on_fail_jump_to);
               if (jumpIndex >= 0 && jumpIndex < i) {
-                onLog(`\n${step.name} failed: ${reason}. Jumping back to '${steps[jumpIndex].name}'...\n`);
-                // Clear ALL steps from jumpIndex through i (not just the target)
+                const retryMsg = `${step.name} failed (attempt ${attempt}/${maxAttempts}): ${reason}. Retrying from '${steps[jumpIndex].name}'...`;
+                onLog(`\n${retryMsg}\n`);
+                await supabase.from('jobs').update({ question: retryMsg }).eq('id', jobId);
+                await supabase.from('job_logs').insert({ job_id: jobId, event: 'log', data: { text: `[retry] ${retryMsg}` } });
+                // Clear steps from jumpIndex through i so they re-run
+                // Preserve failed step's output for retry context
+                const failedOutput = phasesCompleted.find(p => p.phase === step.name)?.output;
                 for (let ci = jumpIndex; ci <= i; ci++) {
                   completedPhaseNames.delete(steps[ci].name);
                 }
-                // Remove stale output for all intermediate steps
                 for (let pi = phasesCompleted.length - 1; pi >= 0; pi--) {
                   const stepIdx = steps.findIndex(s => s.name === phasesCompleted[pi].phase);
                   if (stepIdx >= jumpIndex && stepIdx <= i) { phasesCompleted.splice(pi, 1); }
+                }
+                // Store gate feedback on the job -- steps with 'gate_feedback' context source will pick it up
+                if (failedOutput) {
+                  task._gateFeedback = `${step.name} failed: ${reason}\n\nFull output:\n${failedOutput.substring(0, 3000)}`;
                 }
                 i = jumpIndex;
                 break;
               }
             }
-            onLog(`\n${step.name} failed: ${reason}. Retrying...\n`);
+            const retryMsg = `${step.name} failed (attempt ${attempt}/${maxAttempts}): ${reason}. Retrying...`;
+            onLog(`\n${retryMsg}\n`);
+            await supabase.from('jobs').update({ question: retryMsg }).eq('id', jobId);
+            await supabase.from('job_logs').insert({ job_id: jobId, event: 'log', data: { text: `[retry] ${retryMsg}` } });
             continue;
           }
           if (failed && attempt >= maxAttempts) {
@@ -522,59 +591,7 @@ export async function runFlowJob(ctx: FlowJobContext): Promise<void> {
 
   // Scan .artifacts/ directory for produced files
   if (ctx.task.chaining === 'produce' || ctx.task.chaining === 'both') {
-    const artifactsDir = join(localPath, '.artifacts');
-    if (existsSync(artifactsDir)) {
-      const files = readdirSync(artifactsDir);
-      for (const filename of files) {
-        const filePath = join(artifactsDir, filename);
-        try {
-          const stat = statSync(filePath);
-          if (!stat.isFile()) continue;
-          const fileBuffer = readFileSync(filePath);
-          const ext = filename.split('.').pop()?.toLowerCase() || '';
-          const mimeMap: Record<string, string> = {
-            png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-            svg: 'image/svg+xml', webp: 'image/webp', pdf: 'application/pdf',
-            md: 'text/markdown', txt: 'text/plain', json: 'application/json',
-            csv: 'text/csv', html: 'text/html', mp4: 'video/mp4', mp3: 'audio/mpeg',
-          };
-          const mimeType = mimeMap[ext] || 'application/octet-stream';
-
-          // Get project_id from task
-          const { data: taskRow } = await supabase.from('tasks').select('project_id').eq('id', ctx.taskId).single();
-          if (!taskRow?.project_id) {
-            onLog(`[artifact] Skipping ${filename}: could not resolve project_id\n`);
-            continue;
-          }
-          const storagePath = `${taskRow.project_id}/${ctx.taskId}/${filename}`;
-
-          await supabase.storage.from('task-artifacts').upload(storagePath, fileBuffer, {
-            contentType: mimeType, upsert: true
-          });
-
-          await supabase.from('task_artifacts').insert({
-            task_id: ctx.taskId,
-            job_id: jobId,
-            phase: phasesCompleted[phasesCompleted.length - 1]?.phase || 'unknown',
-            filename,
-            mime_type: mimeType,
-            size_bytes: stat.size,
-            storage_path: storagePath,
-          });
-
-          onLog(`[artifact] Captured: ${filename} (${mimeType}, ${stat.size} bytes)\n`);
-        } catch (err: any) {
-          onLog(`[artifact] Failed to capture ${filename}: ${err.message}\n`);
-        }
-      }
-      // Clean up the .artifacts directory
-      try {
-        for (const f of readdirSync(artifactsDir)) {
-          unlinkSync(join(artifactsDir, f));
-        }
-        rmdirSync(artifactsDir);
-      } catch { /* best effort cleanup */ }
-    }
+    await scanAndUploadArtifacts(localPath, ctx.taskId, jobId, phasesCompleted[phasesCompleted.length - 1]?.phase || 'unknown', onLog);
   }
 
   let filesChanged = 0;
@@ -1210,6 +1227,7 @@ export async function runJob(ctx: JobContext): Promise<void> {
           output: output.substring(0, 10000), // Cap output size
         };
         phasesCompleted.push(phaseOutput);
+        await supabase.from('jobs').update({ phases_completed: phasesCompleted }).eq('id', jobId);
         onPhaseComplete(phase, phaseOutput);
 
         // Check if agent asked a question (simple heuristic: ends with ?)
@@ -1340,58 +1358,7 @@ export async function runJob(ctx: JobContext): Promise<void> {
 
   // Scan .artifacts/ directory for produced files
   if (ctx.task.chaining === 'produce' || ctx.task.chaining === 'both') {
-    const artifactsDir = join(localPath, '.artifacts');
-    if (existsSync(artifactsDir)) {
-      const files = readdirSync(artifactsDir);
-      for (const filename of files) {
-        const filePath = join(artifactsDir, filename);
-        try {
-          const fstat = statSync(filePath);
-          if (!fstat.isFile()) continue;
-          const fileBuffer = readFileSync(filePath);
-          const ext = filename.split('.').pop()?.toLowerCase() || '';
-          const mimeMap: Record<string, string> = {
-            png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
-            svg: 'image/svg+xml', webp: 'image/webp', pdf: 'application/pdf',
-            md: 'text/markdown', txt: 'text/plain', json: 'application/json',
-            csv: 'text/csv', html: 'text/html', mp4: 'video/mp4', mp3: 'audio/mpeg',
-          };
-          const mimeType = mimeMap[ext] || 'application/octet-stream';
-
-          const { data: taskRow } = await supabase.from('tasks').select('project_id').eq('id', ctx.taskId).single();
-          if (!taskRow?.project_id) {
-            onLog(`[artifact] Skipping ${filename}: could not resolve project_id\n`);
-            continue;
-          }
-          const storagePath = `${taskRow.project_id}/${ctx.taskId}/${filename}`;
-
-          await supabase.storage.from('task-artifacts').upload(storagePath, fileBuffer, {
-            contentType: mimeType, upsert: true
-          });
-
-          await supabase.from('task_artifacts').insert({
-            task_id: ctx.taskId,
-            job_id: jobId,
-            phase: phasesCompleted[phasesCompleted.length - 1]?.phase || 'unknown',
-            filename,
-            mime_type: mimeType,
-            size_bytes: fstat.size,
-            storage_path: storagePath,
-          });
-
-          onLog(`[artifact] Captured: ${filename} (${mimeType}, ${fstat.size} bytes)\n`);
-        } catch (err: any) {
-          onLog(`[artifact] Failed to capture ${filename}: ${err.message}\n`);
-        }
-      }
-      // Clean up the .artifacts directory
-      try {
-        for (const f of readdirSync(artifactsDir)) {
-          unlinkSync(join(artifactsDir, f));
-        }
-        rmdirSync(artifactsDir);
-      } catch { /* best effort cleanup */ }
-    }
+    await scanAndUploadArtifacts(localPath, ctx.taskId, jobId, phasesCompleted[phasesCompleted.length - 1]?.phase || 'unknown', onLog);
   }
 
   const reviewOutput = phasesCompleted[phasesCompleted.length - 1];

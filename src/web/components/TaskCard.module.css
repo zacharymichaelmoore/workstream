@@ -1,6 +1,7 @@
 /* ─── TaskCard: individual task within a column ─── */
 .card {
   border: 1px solid var(--divider);
+  border-left: 3px solid var(--divider);
   border-radius: 10px;
   background: var(--white);
   cursor: pointer;
@@ -32,7 +33,7 @@
   border-left: 3px solid var(--red);
 }
 .statusDone {
-  border-left: 3px solid var(--divider);
+  border-left: 3px solid var(--green);
 }
 .statusDone .title {
   color: var(--text-3);
@@ -279,9 +280,11 @@
 
 /* ─── Expanded detail area ─── */
 .detail {
-  padding: 0 12px 14px;
+  padding: 10px 12px;
   border-top: 1px solid var(--divider);
-  animation: slideDown 0.15s ease-out;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 @keyframes slideDown {
   from { opacity: 0; max-height: 0; }
@@ -293,7 +296,7 @@
   display: flex;
   align-items: center;
   gap: 0;
-  padding: 10px 0 8px;
+  padding: 10px 0;
   flex-wrap: wrap;
 }
 .phaseWrap {
@@ -345,22 +348,25 @@
   color: #7D6680;
 }
 
-/* Running status line */
-.runMeta {
+/* Attempt + elapsed time, pushed right of phase pills */
+.runStats {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-3);
-  padding: 4px 0 8px;
+  gap: 8px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-4);
+  font-weight: 500;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
-.runMeta strong {
-  color: var(--text-2);
+.elapsed {
+  color: var(--text-3);
+  font-weight: 600;
 }
 
 /* ─── Paused: question callout ─── */
 .question {
-  margin: 10px 0;
   padding: 12px 14px;
   background: var(--amber-bg);
   border-radius: 8px;
@@ -372,10 +378,11 @@
 
 /* ─── Review section ─── */
 .reviewSection {
-  padding: 10px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .files {
-  margin-bottom: 10px;
 }
 .filesLabel {
   display: block;
@@ -397,7 +404,6 @@
 .checks {
   display: flex;
   gap: 14px;
-  margin-bottom: 12px;
   font-size: 12px;
   font-weight: 500;
 }
@@ -413,16 +419,26 @@
 
 /* ─── Failed section ─── */
 .failedSection {
-  padding: 10px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 .errorMsg {
   font-size: 13px;
   color: var(--red);
   line-height: 1.5;
-  margin-bottom: 10px;
   padding: 10px 12px;
   background: var(--red-bg);
   border-radius: 8px;
+}
+.retryBanner {
+  font-size: 12px;
+  color: var(--amber);
+  line-height: 1.4;
+  padding: 8px 12px;
+  background: var(--amber-bg);
+  border-radius: 8px;
+  font-weight: 500;
 }
 .failActions {
   display: flex;
@@ -462,7 +478,6 @@
   font-size: 13px;
   color: var(--text-2);
   line-height: 1.6;
-  padding: 10px 0 6px;
 }
 .desc p { margin: 0 0 6px; }
 .desc p:last-child { margin-bottom: 0; }
@@ -525,12 +540,6 @@
 
 /* (humanActions and idleActions merged into .actions / .actionsLeft / .actionsRight) */
 
-/* Terminate button area */
-.terminateWrap {
-  padding-top: 8px;
-  display: flex;
-  justify-content: flex-end;
-}
 
 /* Comment row with hover-reveal delete */
 .comment {
@@ -613,7 +622,7 @@
 @media (max-width: 768px) {
   .compact { padding: 8px 10px; }
   .preview { padding: 0 10px 8px 10px; }
-  .detail { padding: 0 10px 12px; }
+  .detail { padding: 10px 10px; }
   .tags { flex-wrap: wrap; }
   .title { font-size: 13px; }
   .tag { font-size: 10px; padding: 1px 6px; }

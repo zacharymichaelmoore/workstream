@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { homedir } from 'os';
 import { runJob, runFlowJob, loadTaskTypeConfig, cancelJob, cancelAllJobs, cleanupOrphanedJobs } from './runner.js';
 import type { FlowConfig } from './runner.js';
 import { supabase } from './supabase.js';
@@ -130,7 +131,7 @@ async function startJob(job: any): Promise<void> {
 
   // Expand ~ to home directory (Node doesn't do this automatically)
   if (localPath.startsWith('~/')) {
-    localPath = localPath.replace('~', process.env.HOME || '/home/sixbox');
+    localPath = localPath.replace('~', process.env.HOME || homedir());
   }
 
   // Mark running
@@ -178,7 +179,7 @@ async function startJob(job: any): Promise<void> {
 
   // Determine fresh start vs resume
   const phasesAlreadyCompleted: any[] = (job.phases_completed as any[]) || [];
-  const isResume = phasesAlreadyCompleted.length > 0 && job.answer != null;
+  const isResume = phasesAlreadyCompleted.length > 0;
 
   // Create checkpoint for fresh starts only
   if (!isResume) {
@@ -212,7 +213,7 @@ async function startJob(job: any): Promise<void> {
         await writeLog(jobId, 'review', result);
         // Auto-approve: mark job done + checkpoint cleaned, task done, clean checkpoint
         const now = new Date().toISOString();
-        try { deleteCheckpoint(localPath, jobId); } catch {}
+        try { deleteCheckpoint(localPath, jobId); } catch (e: any) { console.warn(`[worker] Checkpoint delete failed for job ${jobId}:`, e.message); }
         await Promise.all([
           supabase.from('jobs').update({ status: 'done', completed_at: now, checkpoint_status: 'cleaned' }).eq('id', jobId),
           supabase.from('tasks').update({ status: 'done', completed_at: now }).eq('id', task.id),
@@ -356,7 +357,9 @@ setInterval(async () => {
         if (job.local_path) {
           try {
             revertToCheckpoint(job.local_path, job.id);
-          } catch { /* checkpoint may not exist for queued jobs */ }
+          } catch (e: any) {
+            console.warn(`[worker] Checkpoint revert failed for canceled job ${job.id}:`, e.message);
+          }
         }
 
         await supabase.from('jobs').update({
@@ -416,7 +419,7 @@ setInterval(async () => {
   try {
     const { data: workstreams } = await supabase
       .from('workstreams')
-      .select('id, pr_url')
+      .select('id, name, project_id, pr_url')
       .eq('status', 'complete')
       .not('pr_url', 'is', null);
 
@@ -436,6 +439,30 @@ setInterval(async () => {
         const pr = JSON.parse(stdout.trim());
         if (pr.state === 'MERGED') {
           await supabase.from('workstreams').update({ status: 'merged' }).eq('id', ws.id);
+          // Clean up worktree
+          try {
+            const { data: project } = await supabase
+              .from('projects')
+              .select('id')
+              .eq('id', ws.project_id)
+              .single();
+            if (project) {
+              const { data: member } = await supabase
+                .from('project_members')
+                .select('local_path')
+                .eq('project_id', project.id)
+                .not('local_path', 'is', null)
+                .limit(1)
+                .single();
+              if (member?.local_path) {
+                const { cleanupWorktree } = await import('./worktree.js');
+                cleanupWorktree(member.local_path, slugify(ws.name));
+                console.log(`[worker] Cleaned up worktree for workstream ${ws.name}`);
+              }
+            }
+          } catch (err: any) {
+            console.log(`[worker] Worktree cleanup failed for ${ws.id}: ${err.message}`);
+          }
           console.log(`[worker] PR merged for workstream ${ws.id}`);
         } else if (pr.state === 'CLOSED') {
           // PR was closed without merging -- reset to complete so user can re-create
