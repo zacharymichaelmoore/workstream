@@ -40,6 +40,9 @@ export function useWorkstreams(projectId: string | null) {
           }
           return [...prev, event.workstream].sort((a, b) => a.position - b.position);
         });
+      } else if (event.type === 'workstream_review_log') {
+        const logEvent = new CustomEvent('workstream_review_log', { detail: event });
+        window.dispatchEvent(logEvent);
       } else if (event.type === 'full_sync') {
         load();
       }

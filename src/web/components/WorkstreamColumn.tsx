@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useModal } from '../hooks/useModal';
 import { TaskCard } from './TaskCard';
 import { ArtifactConnector } from './ArtifactConnector';
+import { WorkstreamLogs } from './WorkstreamLogs';
 import type { JobView } from './job-types';
 import s from './WorkstreamColumn.module.css';
 import taskStyles from './TaskCard.module.css';
@@ -839,6 +840,9 @@ export function WorkstreamColumn({
             <span className={s.reviewingDot} />
             Reviewing code...
           </span>
+          <button className="btn btnSm btnGhost" onClick={() => modal.show(<WorkstreamLogs workstreamId={workstream.id} />)}>
+            View Logs
+          </button>
         </div>
       )}
 
