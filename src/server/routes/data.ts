@@ -641,47 +641,47 @@ export function discoverSkills(localPath?: string): SkillInfo[] {
   const pluginsDirs = [join(home, '.claude', 'plugins', 'marketplaces'), join(home, '.opencode', 'plugins', 'marketplaces')];
   for (const pluginsDir of pluginsDirs) {
     if (existsSync(pluginsDir)) {
-    try {
-      for (const marketplace of readdirSync(pluginsDir)) {
-        const mpPlugins = join(pluginsDir, marketplace, 'plugins');
-        if (!existsSync(mpPlugins)) continue;
-        for (const plugin of readdirSync(mpPlugins)) {
-          const cmdDir = join(mpPlugins, plugin, 'commands');
-          addFromDir(cmdDir, plugin);
+      try {
+        for (const marketplace of readdirSync(pluginsDir)) {
+          const mpPlugins = join(pluginsDir, marketplace, 'plugins');
+          if (!existsSync(mpPlugins)) continue;
+          for (const plugin of readdirSync(mpPlugins)) {
+            const cmdDir = join(mpPlugins, plugin, 'commands');
+            addFromDir(cmdDir, plugin);
 
-          // Also scan skills/ subdirectory for each plugin
-          const skillsDir = join(mpPlugins, plugin, 'skills');
-          if (existsSync(skillsDir)) {
-            try {
-              for (const skillName of readdirSync(skillsDir)) {
-                const skillDir = join(skillsDir, skillName);
-                try { if (!statSync(skillDir).isDirectory()) continue; } catch { continue; }
-                if (seen.has(skillName)) continue;
-                // Look for the main skill file: skillName.md, SKILL.md, or first .md
-                const candidateFiles = [
-                  join(skillDir, `${skillName}.md`),
-                  join(skillDir, 'SKILL.md'),
-                ];
-                let filePath: string | null = null;
-                for (const cf of candidateFiles) {
-                  if (existsSync(cf)) { filePath = cf; break; }
+            // Also scan skills/ subdirectory for each plugin
+            const skillsDir = join(mpPlugins, plugin, 'skills');
+            if (existsSync(skillsDir)) {
+              try {
+                for (const skillName of readdirSync(skillsDir)) {
+                  const skillDir = join(skillsDir, skillName);
+                  try { if (!statSync(skillDir).isDirectory()) continue; } catch { continue; }
+                  if (seen.has(skillName)) continue;
+                  // Look for the main skill file: skillName.md, SKILL.md, or first .md
+                  const candidateFiles = [
+                    join(skillDir, `${skillName}.md`),
+                    join(skillDir, 'SKILL.md'),
+                  ];
+                  let filePath: string | null = null;
+                  for (const cf of candidateFiles) {
+                    if (existsSync(cf)) { filePath = cf; break; }
+                  }
+                  if (!filePath) {
+                    const altFile = readdirSync(skillDir).find(f => f.endsWith('.md'));
+                    if (altFile) filePath = join(skillDir, altFile);
+                  }
+                  if (!filePath) continue;
+                  const meta = parseSkillFrontmatter(filePath);
+                  if (!meta) continue;
+                  seen.add(skillName);
+                  skills.push({ name: `${plugin}:${skillName}`, description: meta.description, source: plugin, filePath });
                 }
-                if (!filePath) {
-                  const altFile = readdirSync(skillDir).find(f => f.endsWith('.md'));
-                  if (altFile) filePath = join(skillDir, altFile);
-                }
-                if (!filePath) continue;
-                const meta = parseSkillFrontmatter(filePath);
-                if (!meta) continue;
-                seen.add(skillName);
-                skills.push({ name: `${plugin}:${skillName}`, description: meta.description, source: plugin, filePath });
-              }
-            } catch { /* skip */ }
+              } catch { /* skip */ }
+            }
           }
         }
-      }
-    } catch { /* skip */ }
-  }
+      } catch { /* skip */ }
+    }
   }
 
   return skills;
