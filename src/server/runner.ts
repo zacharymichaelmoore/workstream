@@ -1568,6 +1568,8 @@ function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: st
         finalArgs.splice(runIdx, 1);
         finalArgs.unshift('run');
       }
+
+      console.log(`[worker] Spawning ${aiCli} with args:`, finalArgs);
     }
 
     const proc = spawn(aiCli, finalArgs, {

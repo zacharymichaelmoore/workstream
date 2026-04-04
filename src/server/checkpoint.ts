@@ -34,7 +34,13 @@ export function createCheckpoint(localPath: string, jobId: string): CheckpointIn
   }
 
   // Undo the commit but keep files as they were (mixed reset)
-  git(['reset', '--mixed', 'HEAD~1'], localPath);
+  try {
+    git(['reset', '--mixed', 'HEAD~1'], localPath);
+  } catch (err: any) {
+    // If it fails because HEAD~1 is ambiguous (i.e. this is the first commit on the branch),
+    // we can just delete the HEAD ref to un-commit it.
+    git(['update-ref', '-d', 'HEAD'], localPath);
+  }
 
   return { jobId, commitSha, headSha, branch };
 }
