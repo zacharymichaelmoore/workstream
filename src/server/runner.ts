@@ -1047,6 +1047,7 @@ export const agentEnv = {
   ...process.env,
   TERM: 'dumb',
   PATH: `${process.env.HOME}/.local/bin:${process.env.HOME}/.opencode/bin:${process.env.PATH}`,
+  OPENCODE_AUTO_APPROVE: 'true',
 };
 
 // Active processes for cancellation
