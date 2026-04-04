@@ -1558,6 +1558,7 @@ function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: st
         if (arg === 'stream-json') return 'json'; // Opencode uses 'json' instead of 'stream-json'
         if (arg === '--allowedTools') return '--allowed-tools'; // Minor flag casing diffs if any
         if (arg === '--disallowedTools') return '--disallowed-tools';
+        if (arg === '--effort') return '--variant'; // Opencode uses 'variant' instead of 'effort'
         return arg;
       });
       
