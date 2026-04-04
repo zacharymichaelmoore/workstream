@@ -1519,7 +1519,14 @@ function formatStreamEvent(event: any): string | null {
 /** Quick agent call for generating summaries. No tools, no streaming, just text in/out. */
 function generateSummary(prompt: string, aiCli: string = 'opencode'): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aiCli, ['-p', '--output-format', 'text', '--max-turns', '1', '--model', 'sonnet'], {
+    let args: string[] = [];
+    if (aiCli === 'opencode') {
+      args = ['run', '--format', 'default', '--model', 'sonnet'];
+    } else {
+      args = ['-p', '--output-format', 'text', '--max-turns', '1', '--model', 'sonnet'];
+    }
+
+    const proc = spawn(aiCli, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: agentEnv,
       timeout: 30000,
@@ -1539,7 +1546,29 @@ function generateSummary(prompt: string, aiCli: string = 'opencode'): Promise<st
 
 function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: string) => void, prompt: string | undefined, aiCli: string = 'opencode'): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(aiCli, args, {
+    let finalArgs = [...args];
+    
+    // Adapt arguments for opencode CLI vs claude CLI
+    if (aiCli === 'opencode') {
+      // Replace claude-specific flags with opencode equivalents
+      finalArgs = finalArgs.map(arg => {
+        if (arg === '-p') return 'run'; // Opencode uses 'run' command
+        if (arg === '--output-format') return '--format';
+        if (arg === 'stream-json') return 'json'; // Opencode uses 'json' instead of 'stream-json'
+        if (arg === '--allowedTools') return '--allowed-tools'; // Minor flag casing diffs if any
+        if (arg === '--disallowedTools') return '--disallowed-tools';
+        return arg;
+      });
+      
+      // Move 'run' to the very beginning of the args list if it exists
+      const runIdx = finalArgs.indexOf('run');
+      if (runIdx > 0) {
+        finalArgs.splice(runIdx, 1);
+        finalArgs.unshift('run');
+      }
+    }
+
+    const proc = spawn(aiCli, finalArgs, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: agentEnv,
