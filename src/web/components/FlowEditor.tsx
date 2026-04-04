@@ -386,11 +386,11 @@ function FlowColumn({
               <div
                 className={s.stepCompact}
                 onClick={() => state.setExpandedStep(isExpanded ? null : idx)}
+                draggable
+                onDragStart={e => handleDragStart(idx)}
               >
                 <span
                   className={s.dragHandle}
-                  draggable
-                  onDragStart={e => { e.stopPropagation(); handleDragStart(idx); }}
                   onClick={e => e.stopPropagation()}
                   title="Drag to reorder"
                 >&#8942;&#8942;</span>

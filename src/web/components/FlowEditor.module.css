@@ -289,6 +289,12 @@
   gap: 6px;
   padding: 10px 12px;
 }
+.stepCompact:hover {
+  cursor: grab;
+}
+.stepCompact:active {
+  cursor: grabbing;
+}
 
 /* Drag handle (mirrors TaskCard .handle) */
 .dragHandle {
