@@ -676,12 +676,11 @@ export function discoverSkills(localPath?: string): SkillInfo[] {
                 seen.add(skillName);
                 skills.push({ name: `${plugin}:${skillName}`, description: meta.description, source: plugin, filePath });
               }
-                } catch { /* skip */ }
-  }
+            } catch { /* skip */ }
           }
         }
       }
-        } catch { /* skip */ }
+    } catch { /* skip */ }
   }
   }
 
