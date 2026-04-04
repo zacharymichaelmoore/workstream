@@ -99,13 +99,13 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
   try {
     const { data: ws } = await supabase
       .from('workstreams')
-      .select('id, name, project_id, project:project_id(ai_cli)')
+      .select('id, name, project_id')
       .eq('id', workstreamId)
       .single();
     if (!ws) return res.status(404).json({ error: 'Workstream not found' });
 
-    // Determine the cli command (prefer project setting if available)
-    const aiCli = (ws.project as any)?.ai_cli || 'opencode';
+    // AI CLI is on the task/job level now, default to opencode
+    const aiCli = 'opencode';
 
     // Set workstream status to reviewing
     await supabase.from('workstreams').update({ status: 'reviewing' }).eq('id', workstreamId);
