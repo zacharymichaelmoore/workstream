@@ -613,11 +613,13 @@ export function discoverSkills(localPath?: string): SkillInfo[] {
 
   // Project-level commands (highest priority)
   if (localPath) {
+    addFromDir(join(localPath, '.claude', 'commands'), 'project');
     addFromDir(join(localPath, '.opencode', 'commands'), 'project');
   }
 
   // Global user commands
   const home = homedir();
+  addFromDir(join(home, '.claude', 'commands'), 'global');
   addFromDir(join(home, '.opencode', 'commands'), 'global');
 
   // Installed plugins

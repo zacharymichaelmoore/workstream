@@ -138,8 +138,8 @@ async function buildStepPrompt(
           const content = readFileSync(opencodeMdPath, 'utf-8');
           prompt += `## Project Context (from OPENCODE.md)\n${content.substring(0, 8000)}\n\n`;
         } else if (existsSync(claudeMdPath)) {
-          const content = readFileSync(opencodeMdPath, 'utf-8');
-          prompt += `## Project Context (from OPENCODE.md)\n${content.substring(0, 8000)}\n\n`;
+          const content = readFileSync(claudeMdPath, 'utf-8');
+          prompt += `## Project Context (from CLAUDE.md)\n${content.substring(0, 8000)}\n\n`;
         }
         break;
       }
@@ -697,13 +697,13 @@ async function buildPrompt(phase: string, task: any, previousOutputs: any[], loc
   // Inject project context from OPENCODE.md if it exists
   let projectContext = '';
   const opencodeMdPath = join(localPath, 'OPENCODE.md');
-        const claudeMdPath = join(localPath, 'CLAUDE.md');
+  const claudeMdPath = join(localPath, 'CLAUDE.md');
   if (existsSync(opencodeMdPath)) {
-          const content = readFileSync(opencodeMdPath, 'utf-8');
-          prompt += `## Project Context (from OPENCODE.md)\n${content.substring(0, 8000)}\n\n`;
-        } else if (existsSync(claudeMdPath)) {
     const content = readFileSync(opencodeMdPath, 'utf-8');
     projectContext = `## Project Context (from OPENCODE.md)\n${content.substring(0, 8000)}\n\n`;
+  } else if (existsSync(claudeMdPath)) {
+    const content = readFileSync(claudeMdPath, 'utf-8');
+    projectContext = `## Project Context (from CLAUDE.md)\n${content.substring(0, 8000)}\n\n`;
   }
 
   let prompt = `You are working on a task in this project's codebase.

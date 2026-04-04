@@ -32,6 +32,7 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-# Claude
+# Claude & Opencode
 .claude/
+.opencode/
 .worktrees/
