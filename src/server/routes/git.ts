@@ -134,7 +134,7 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
       // Build proper CLI arguments depending on the agent
       let args: string[] = [];
       if (aiCli === 'opencode') {
-        args = ['run', '--format', 'default', '-m', 'google/gemini-3.1-pro-preview', reviewPrompt];
+        args = ['run', '--format', 'json', '-m', 'google/gemini-3.1-pro-preview', reviewPrompt];
       } else {
         args = ['-p', '--output-format', 'text', '--max-turns', '30', '--model', 'opus'];
       }
@@ -146,6 +146,7 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
       });
       let stdout = '';
       let stderrTail = '';
+      let partialLine = '';
       const STDERR_MAX = 2048;
       let settled = false;
 
@@ -158,7 +159,44 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
 
       proc.stdin.write(reviewPrompt);
       proc.stdin.end();
-      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+      proc.stdout.on('data', (d: Buffer) => {
+        const text = d.toString();
+        stdout += text;
+        
+        // Parse and log stream events if in JSON mode
+        if (aiCli === 'opencode') {
+          partialLine += text;
+          const lines = partialLine.split('\n');
+          partialLine = lines.pop() || '';
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const event = JSON.parse(line);
+              if (event.type === 'assistant' && event.message?.content) {
+                for (const block of event.message.content) {
+                  if (block.type === 'text' && block.text) {
+                    const txt = block.text.trim();
+                    if (txt) {
+                      // Broadcast to project so UI can see live logs
+                      broadcast(ws.project_id, {
+                        type: 'workstream_review_log',
+                        workstreamId,
+                        text: txt
+                      });
+                    }
+                  } else if (block.type === 'tool_use') {
+                     broadcast(ws.project_id, {
+                       type: 'workstream_review_log',
+                       workstreamId,
+                       text: `[${block.name}]`
+                     });
+                  }
+                }
+              }
+            } catch { /* ignore parse errors */ }
+          }
+        }
+      });
       proc.stderr.on('data', (d: Buffer) => {
         stderrTail += d.toString();
         if (stderrTail.length > STDERR_MAX) {
