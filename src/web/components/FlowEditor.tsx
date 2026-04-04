@@ -20,7 +20,14 @@ const ALL_CONTEXT_SOURCES = [
   'opencode_md', 'task_description', 'task_images',
   'skills', 'architecture_md', 'review_criteria', 'followup_notes', 'git_diff', 'rag',
 ];
-const MODEL_OPTIONS = ['opus', 'sonnet'];
+const CLAUDE_MODEL_OPTIONS = ['opus', 'sonnet'];
+const OPENCODE_MODEL_OPTIONS = [
+  'google/gemini-3.1-pro-preview',
+  'google/gemini-3.1-flash-lite-preview',
+  'google/gemini-3-pro-preview',
+  'google/gemini-2.5-pro',
+  'google/gemma-4-31b'
+];
 const ON_MAX_RETRIES_OPTIONS = ['pause', 'fail', 'skip'];
 
 function makeBlankStep(position: number): FlowStep {
@@ -388,8 +395,8 @@ function FlowColumn({
                   title="Drag to reorder"
                 >&#8942;&#8942;</span>
                 <span className={s.stepName}>{step.name || `Step ${idx + 1}`}</span>
-                <span className={`${s.modelBadge} ${step.model === 'opus' ? s.modelOpus : s.modelSonnet}`}>
-                  {step.model}
+                <span className={`${s.modelBadge} ${CLAUDE_MODEL_OPTIONS.includes(step.model) ? (step.model === 'opus' ? s.modelOpus : s.modelSonnet) : s.modelOpencode}`}>
+                  {step.model.split('/').pop()}
                 </span>
                 {step.is_gate && <span className={s.gateIcon} title="Gate step">&#9878;</span>}
                 <span className={`${s.stepExpandIcon} ${isExpanded ? s.stepExpandIconOpen : ''}`}>&#9654;</span>
@@ -421,9 +428,9 @@ function FlowColumn({
 
                   {/* Model */}
                   <div className={s.field}>
-                    <label className={s.label}>Model</label>
+                    <label className={s.label}>Claude Models</label>
                     <div className={s.segmented}>
-                      {MODEL_OPTIONS.map(m => (
+                      {CLAUDE_MODEL_OPTIONS.map(m => (
                         <button
                           key={m}
                           type="button"
@@ -434,6 +441,19 @@ function FlowColumn({
                         </button>
                       ))}
                     </div>
+                  </div>
+                  <div className={s.field}>
+                    <label className={s.label}>Opencode Models</label>
+                    <select
+                      className={s.select}
+                      value={OPENCODE_MODEL_OPTIONS.includes(step.model) ? step.model : ''}
+                      onChange={(e) => updateStep(idx, { model: e.target.value })}
+                    >
+                      <option value="" disabled>Select an Opencode model...</option>
+                      {OPENCODE_MODEL_OPTIONS.map(m => (
+                        <option key={m} value={m}>{m.split('/').pop()}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Tools */}

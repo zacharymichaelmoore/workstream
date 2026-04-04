@@ -501,7 +501,7 @@ setChaining] = useState(editTask?.chaining || 'none');
               <div className={s.field}>
                 <label className={s.label}>Agent CLI</label>
                 <select className={s.select} value={aiCli} onChange={e => setAiCli(e.target.value)}>
-                  <option value="opencode">Opencode Code</option>
+                  <option value="opencode">Opencode</option>
                   <option value="claude">Claude Code</option>
                 </select>
               </div>

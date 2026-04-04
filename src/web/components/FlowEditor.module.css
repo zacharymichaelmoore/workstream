@@ -259,10 +259,13 @@
   border: 1px solid var(--divider);
   border-radius: 10px;
   background: var(--white);
-  cursor: pointer;
+  cursor: grab;
   transition: box-shadow 0.15s, border-color 0.15s, opacity 0.2s, transform 0.2s cubic-bezier(0.2, 0, 0, 1);
   overflow: visible;
   position: relative;
+}
+.stepCard:active {
+  cursor: grabbing;
 }
 .stepCard:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);

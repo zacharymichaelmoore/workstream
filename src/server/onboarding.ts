@@ -20,7 +20,7 @@ function run(cmd: string, args: string[] = []): { ok: boolean; output: string } 
 export async function runChecks(localPath?: string): Promise<Check[]> {
   const checks: Check[] = [];
 
-  // Agent CLI (Claude Code or Opencode Code)
+  // Agent CLI (Claude Code or Opencode)
   const claude = run('which', ['claude']);
   const opencode = run('which', ['opencode']);
   const hasAgent = claude.ok || opencode.ok;
@@ -29,7 +29,7 @@ export async function runChecks(localPath?: string): Promise<Check[]> {
     id: 'agent_cli',
     label: 'AI Agent CLI',
     ok: hasAgent,
-    help: 'Install an AI agent CLI (Claude Code or Opencode Code)',
+    help: 'Install an AI agent CLI (Claude Code or Opencode)',
     required: true,
   });
 
