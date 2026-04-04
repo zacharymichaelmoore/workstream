@@ -346,7 +346,7 @@ export function TaskCard({
       )}
 
       {/* Expanded detail for non-active states (click to toggle) */}
-      {!isActive && isExpanded && !taskDone && (
+      {!isActive && isExpanded && (!taskDone || jobStatus === 'failed') && (
         <div className={s.detail} onClick={(e) => e.stopPropagation()}>
           {/* FAILED */}
           {jobStatus === 'failed' && job && (
