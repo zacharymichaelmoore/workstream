@@ -1047,7 +1047,6 @@ export const agentEnv = {
   ...process.env,
   TERM: 'dumb',
   PATH: `${process.env.HOME}/.local/bin:${process.env.HOME}/.opencode/bin:${process.env.PATH}`,
-  OPENCODE_AUTO_APPROVE: 'true',
 };
 
 // Active processes for cancellation
@@ -1527,9 +1526,12 @@ function generateSummary(prompt: string, aiCli: string = 'opencode'): Promise<st
       args = ['-p', '--output-format', 'text', '--max-turns', '1', '--model', 'sonnet'];
     }
 
+    const isOpencode = aiCli === 'opencode';
+    const spawnEnv = isOpencode ? { ...agentEnv, OPENCODE_AUTO_APPROVE: 'true' } : agentEnv;
+
     const proc = spawn(aiCli, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: agentEnv,
+      env: spawnEnv,
       timeout: 30000,
     });
 
@@ -1583,10 +1585,13 @@ function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: st
       console.log(`[worker] Spawning ${aiCli} with args:`, finalArgs);
     }
 
+    const isOpencode = aiCli === 'opencode';
+    const spawnEnv = isOpencode ? { ...agentEnv, OPENCODE_AUTO_APPROVE: 'true' } : agentEnv;
+
     const proc = spawn(aiCli, finalArgs, {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: agentEnv,
+      env: spawnEnv,
     });
 
     activeProcesses.set(jobId, proc);

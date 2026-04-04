@@ -139,10 +139,13 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
         args = ['-p', '--output-format', 'text', '--max-turns', '30', '--model', 'opus'];
       }
 
+      const isOpencode = aiCli === 'opencode';
+      const spawnEnv = isOpencode ? { ...agentEnv, OPENCODE_AUTO_APPROVE: 'true' } : agentEnv;
+
       const proc = spawn(aiCli, args, {
         cwd: worktreePath,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: agentEnv,
+        env: spawnEnv,
       });
       let stdout = '';
       let stderrTail = '';
