@@ -126,7 +126,7 @@ async function notifyTaskFailure(task: any, errorMsg: string): Promise<void> {
 
 async function startJob(job: any): Promise<void> {
   const jobId: string = job.id;
-  let localPath: string = job.local_path;
+  let localPath: string = job.local_path || '';
 
   // Expand ~ to home directory (Node doesn't do this automatically)
   if (localPath.startsWith('~/')) {
