@@ -485,17 +485,28 @@ setChaining] = useState(editTask?.chaining || 'none');
             )}
           </div>
 
-          {!assignee && (
-            <div className={s.field}>
-              <label className={s.label}>File chaining</label>
-              <select className={s.select} value={chaining} onChange={e => setChaining(e.target.value)}>
-                <option value="none">None</option>
-                <option value="accept">Accept files from previous task</option>
-                <option value="produce">Produce files for next task</option>
-                <option value="both">Accept and produce files</option>
-              </select>
-            </div>
-          )}
+          <div className={s.row}>
+            {!assignee && (
+              <div className={s.field}>
+                <label className={s.label}>File chaining</label>
+                <select className={s.select} value={chaining} onChange={e => setChaining(e.target.value)}>
+                  <option value="none">None</option>
+                  <option value="accept">Accept files from previous task</option>
+                  <option value="produce">Produce files for next task</option>
+                  <option value="both">Accept and produce files</option>
+                </select>
+              </div>
+            )}
+            {!assignee && (
+              <div className={s.field}>
+                <label className={s.label}>Agent CLI</label>
+                <select className={s.select} value={aiCli} onChange={e => setAiCli(e.target.value)}>
+                  <option value="opencode">Opencode Code</option>
+                  <option value="claude">Claude Code</option>
+                </select>
+              </div>
+            )}
+          </div>
 
           <div className={s.imagesSection}>
             <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handleFileSelect} />
