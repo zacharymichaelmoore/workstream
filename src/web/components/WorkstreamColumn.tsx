@@ -123,6 +123,7 @@ export function WorkstreamColumn({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(workstream?.name || '');
+  const [logsVisible, setLogsVisible] = useState(false);
   const [columnDropSide, setColumnDropSide] = useState<'left' | 'right' | null>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const tasksRef = useRef<HTMLDivElement>(null);
@@ -840,9 +841,15 @@ export function WorkstreamColumn({
             <span className={s.reviewingDot} />
             Reviewing code...
           </span>
-          <button className="btn btnSm btnGhost" onClick={() => modal.show(<WorkstreamLogs workstreamId={workstream.id} />)}>
-            View Logs
+          <button className="btn btnSm btnGhost" onClick={() => setLogsVisible(!logsVisible)}>
+            {logsVisible ? 'Hide Logs' : 'View Logs'}
           </button>
+        </div>
+      )}
+
+      {logsVisible && wsStatus === 'reviewing' && (
+        <div className={s.logsWrapper}>
+          <WorkstreamLogs workstreamId={workstream.id} />
         </div>
       )}
 

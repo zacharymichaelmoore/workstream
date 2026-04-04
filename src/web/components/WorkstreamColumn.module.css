@@ -321,6 +321,17 @@
   background: rgba(120, 80, 160, 0.05);
   color: #7850A0;
   border-top-color: rgba(120, 80, 160, 0.12);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.logsWrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid var(--divider);
 }
 
 .reviewingLabel {
