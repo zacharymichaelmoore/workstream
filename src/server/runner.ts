@@ -1550,14 +1550,24 @@ function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: st
     
     // Adapt arguments for opencode CLI vs claude CLI
     if (aiCli === 'opencode') {
+      // Opencode doesn't support allowed/disallowed tools directly yet via CLI flags.
+      // Strip them out to prevent crash.
+      const strippedArgs: string[] = [];
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '--allowedTools' || args[i] === '--disallowedTools') {
+          i++; // skip the flag and its value
+          continue;
+        }
+        strippedArgs.push(args[i]);
+      }
+      finalArgs = strippedArgs;
+
       // Replace claude-specific flags with opencode equivalents
       finalArgs = finalArgs.map(arg => {
         if (arg === '-p') return 'run'; // Opencode uses 'run' command
         if (arg === '--verbose') return '--print-logs'; // Opencode uses print-logs
         if (arg === '--output-format') return '--format';
         if (arg === 'stream-json') return 'json'; // Opencode uses 'json' instead of 'stream-json'
-        if (arg === '--allowedTools') return '--allowed-tools'; // Minor flag casing diffs if any
-        if (arg === '--disallowedTools') return '--disallowed-tools';
         if (arg === '--effort') return '--variant'; // Opencode uses 'variant' instead of 'effort'
         return arg;
       });
