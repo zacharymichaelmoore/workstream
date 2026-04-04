@@ -105,7 +105,9 @@ export function TaskForm({ workstreams, members, existingTasks, flows = [], cust
   const [multiagent, setMultiagent] = useState(editTask?.multiagent || 'auto');
   const [autoContinue, setAutoContinue] = useState(editTask?.auto_continue ?? true);
   const [priority, setPriority] = useState(editTask?.priority || 'backlog');
-  const [chaining, setChaining] = useState(editTask?.chaining || 'none');
+  const [chaining,
+setChaining] = useState(editTask?.chaining || 'none');
+  const [aiCli, setAiCli] = useState(editTask?.ai_cli || 'opencode');
   const [images, setImages] = useState<string[]>(editTask?.images || []);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -256,6 +258,7 @@ export function TaskForm({ workstreams, members, existingTasks, flows = [], cust
         workstream_id: workstreamId || null,
         priority,
         chaining,
+        ai_cli: aiCli,
       });
       onClose();
     } catch (err: any) {

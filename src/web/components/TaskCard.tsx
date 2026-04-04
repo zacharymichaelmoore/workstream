@@ -21,6 +21,7 @@ interface Task {
   type: string;
   mode: string;
   effort: string;
+  ai_cli: string;
   multiagent?: string;
   auto_continue: boolean;
   assignee?: { type: string; name?: string; initials?: string } | null;
@@ -400,6 +401,7 @@ function IdleDetail({
       {task.description && <div className={s.desc}><Markdown remarkPlugins={[remarkGfm]}>{task.description}</Markdown></div>}
       <div className={s.meta}>
         <span>effort: {task.effort}</span>
+        <span>ai: {task.ai_cli === 'claude' ? 'Claude' : 'Opencode'}</span>
         {task.multiagent === 'yes' && <span>subagents: on</span>}
         <span>
           assignee: {task.assignee && task.assignee.type !== 'ai'

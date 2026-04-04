@@ -21,5 +21,6 @@ export type JobView = {
   };
   completedAgo?: string;
   flow_snapshot?: any;
+  aiCli?: string;
 };
 

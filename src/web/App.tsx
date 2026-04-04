@@ -208,6 +208,7 @@ export default function App() {
         changedFiles: j.review_result.changed_files ?? j.review_result.changedFiles ?? undefined,
       } : undefined,
       completedAgo: j.completed_at ? timeAgo(j.completed_at) : undefined,
+      aiCli: j.ai_cli || 'opencode',
     }));
   }, [jobs.jobs, taskTitleMap, taskTypeMap]);
 
@@ -373,6 +374,8 @@ export default function App() {
                 workstream_id: task.workstream_id,
                 auto_continue: task.auto_continue,
                 priority: task.priority,
+                chaining: rawTask?.chaining ?? 'none',
+                ai_cli: rawTask?.ai_cli ?? 'opencode',
               });
             }}
             onDeleteTask={async (taskId) => {
@@ -503,6 +506,7 @@ export default function App() {
               workstream_id: data.workstream_id,
               priority: data.priority,
               chaining: data.chaining,
+              ai_cli: data.ai_cli,
             });
           }}
           onClose={() => { setShowTaskForm(false); setTaskFormWorkstream(null); }}
@@ -539,6 +543,7 @@ export default function App() {
               workstream_id: data.workstream_id,
               priority: data.priority,
               chaining: data.chaining,
+              ai_cli: data.ai_cli,
             });
           }}
           onClose={() => setEditingTask(null)}

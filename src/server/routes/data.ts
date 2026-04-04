@@ -292,7 +292,7 @@ dataRouter.post('/api/tasks', requireAuth, async (req, res) => {
 });
 
 dataRouter.patch('/api/tasks/:id', requireAuth, async (req, res) => {
-  const allowed = ['title', 'description', 'type', 'mode', 'effort', 'multiagent', 'status', 'assignee', 'workstream_id', 'position', 'images', 'followup_notes', 'auto_continue', 'priority', 'flow_id', 'chaining'];
+  const allowed = ['title', 'description', 'type', 'mode', 'effort', 'multiagent', 'status', 'assignee', 'workstream_id', 'position', 'images', 'followup_notes', 'auto_continue', 'priority', 'flow_id', 'chaining', 'ai_cli'];
   const updates: Record<string, any> = {};
   for (const key of allowed) {
     if (key in req.body) updates[key] = req.body[key];

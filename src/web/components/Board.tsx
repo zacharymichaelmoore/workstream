@@ -10,6 +10,7 @@ interface Task {
   type: string;
   mode: string;
   effort: string;
+  ai_cli: string;
   multiagent?: string;
   auto_continue: boolean;
   workstream_id: string | null;
