@@ -120,6 +120,11 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
 
     const slug = slugify(ws.name);
     const branch = `workstream/${slug}`;
+    const worktreePath = join(localPath, '.worktrees', slug);
+
+    if (!existsSync(worktreePath)) {
+      throw new Error(`Worktree not found for workstream at ${worktreePath}`);
+    }
 
     // Step 1: Run code review via opencode/claude -p
     const reviewPrompt = `Use the \`create-pr\` skill to review all changes in this branch, create a Pull Request, wait for the Firebase Preview Channels to deploy, and output the preview URLs. Follow the exact steps in the skill.`;
@@ -134,7 +139,7 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
       }
 
       const proc = spawn(aiCli, args, {
-        cwd: localPath,
+        cwd: worktreePath,
         stdio: ['pipe', 'pipe', 'pipe'],
         env: agentEnv,
       });
@@ -179,7 +184,7 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
     let prUrl = '';
     try {
       prUrl = execFileSync('gh', ['pr', 'view', '--json', 'url', '--jq', '.url'], {
-        cwd: localPath,
+        cwd: worktreePath,
         encoding: 'utf-8',
         timeout: 10000,
       }).trim();
