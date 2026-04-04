@@ -172,26 +172,23 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
             if (!line.trim()) continue;
             try {
               const event = JSON.parse(line);
-              if (event.type === 'assistant' && event.message?.content) {
-                for (const block of event.message.content) {
-                  if (block.type === 'text' && block.text) {
-                    const txt = block.text.trim();
-                    if (txt) {
-                      // Broadcast to project so UI can see live logs
-                      broadcast(ws.project_id, {
-                        type: 'workstream_review_log',
-                        workstreamId,
-                        text: txt
-                      });
-                    }
-                  } else if (block.type === 'tool_use') {
-                     broadcast(ws.project_id, {
-                       type: 'workstream_review_log',
-                       workstreamId,
-                       text: `[${block.name}]`
-                     });
-                  }
+              if (event.type === 'text' && event.part?.text) {
+                const txt = event.part.text.trim();
+                if (txt) {
+                  broadcast(ws.project_id, {
+                    type: 'workstream_review_log',
+                    workstreamId,
+                    text: txt
+                  });
                 }
+              } else if (event.type === 'tool_use' && event.part?.name) {
+                broadcast(ws.project_id, {
+                  type: 'workstream_review_log',
+                  workstreamId,
+                  text: `[tool] ${event.part.name}`
+                });
+              } else if (event.type === 'step_start') {
+                 // ignore
               }
             } catch { /* ignore parse errors */ }
           }
