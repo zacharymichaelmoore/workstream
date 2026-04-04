@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { execFileSync, spawn } from 'child_process';
 import path from 'path';
+import { existsSync } from 'fs';
 import { supabase } from '../supabase.js';
 import { requireAuth } from '../auth-middleware.js';
 import { cleanupWorktree } from '../worktree.js';
@@ -120,7 +121,7 @@ gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) =>
 
     const slug = slugify(ws.name);
     const branch = `workstream/${slug}`;
-    const worktreePath = join(localPath, '.worktrees', slug);
+    const worktreePath = path.join(localPath, '.worktrees', slug);
 
     if (!existsSync(worktreePath)) {
       throw new Error(`Worktree not found for workstream at ${worktreePath}`);
