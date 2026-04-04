@@ -1046,7 +1046,7 @@ function legacyReviewCheck(output: string): boolean {
 export const agentEnv = {
   ...process.env,
   TERM: 'dumb',
-  PATH: `${process.env.HOME}/.local/bin:${process.env.PATH}`,
+  PATH: `${process.env.HOME}/.local/bin:${process.env.HOME}/.opencode/bin:${process.env.PATH}`,
 };
 
 // Active processes for cancellation
