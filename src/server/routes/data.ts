@@ -778,7 +778,7 @@ or if issues found:
 \`\`\``,
 };
 
-const EXECUTE_CONTEXT = ['opencode_md', 'agents_md', 'task_description', 'skills', 'task_images', 'followup_notes'];
+const EXECUTE_CONTEXT = ['claude_md', 'opencode_md', 'agents_md', 'task_description', 'skills', 'task_images', 'followup_notes'];
 
 /** Maps task types to the default flow name that should handle them. */
 export const TYPE_TO_FLOW_NAME: Record<string, string> = {

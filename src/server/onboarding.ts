@@ -20,23 +20,27 @@ function run(cmd: string, args: string[] = []): { ok: boolean; output: string } 
 export async function runChecks(localPath?: string): Promise<Check[]> {
   const checks: Check[] = [];
 
-  // Opencode Code
+  // Agent CLI (Claude Code or Opencode Code)
+  const claude = run('which', ['claude']);
   const opencode = run('which', ['opencode']);
+  const hasAgent = claude.ok || opencode.ok;
+  
   checks.push({
-    id: 'opencode',
-    label: 'Opencode Code',
-    ok: opencode.ok,
-    help: 'Install Opencode Code: https://opencode.com/download',
+    id: 'agent_cli',
+    label: 'AI Agent CLI',
+    ok: hasAgent,
+    help: 'Install an AI agent CLI (Claude Code or Opencode Code)',
     required: true,
   });
 
-  if (opencode.ok) {
-    const ver = run('opencode', ['--version']);
+  if (hasAgent) {
+    const cliCommand = opencode.ok ? 'opencode' : 'claude';
+    const ver = run(cliCommand, ['--version']);
     checks.push({
-      id: 'opencode-auth',
-      label: 'Opencode Code authenticated',
+      id: 'agent_auth',
+      label: 'AI Agent CLI authenticated',
       ok: ver.ok,
-      help: 'Run `opencode` in your terminal and log in with your Anthropic account',
+      help: `Run \`${cliCommand}\` in your terminal and log in with your account`,
       required: true,
     });
   }
