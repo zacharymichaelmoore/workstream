@@ -1047,6 +1047,7 @@ export const agentEnv = {
   ...process.env,
   TERM: 'dumb',
   PATH: `${process.env.HOME}/.local/bin:${process.env.HOME}/.opencode/bin:${process.env.PATH}`,
+  OPENCODE_PERMISSION: '{"*":"allow"}',
 };
 
 // Active processes for cancellation
@@ -1586,7 +1587,7 @@ function spawnAgent(jobId: string, args: string[], cwd: string, onLog: (text: st
     }
 
     const isOpencode = aiCli === 'opencode';
-    const spawnEnv = isOpencode ? { ...agentEnv, OPENCODE_AUTO_APPROVE: 'true' } : agentEnv;
+    const spawnEnv = isOpencode ? { ...agentEnv, OPENCODE_AUTO_APPROVE: 'true', OPENCODE_PERMISSION: '{"*":"allow"}' } : agentEnv;
 
     const proc = spawn(aiCli, finalArgs, {
       cwd,
