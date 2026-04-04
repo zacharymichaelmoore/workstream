@@ -249,8 +249,8 @@ setChaining] = useState(editTask?.chaining || 'none');
         description: description.trim(),
         type: resolvedType,
         mode,
-        effort,
-        multiagent,
+        effort: mode === 'human' ? 'low' : effort,
+        multiagent: mode === 'human' ? 'auto' : multiagent,
         assignee: assignee || null,
         flow_id: flowId || null,
         auto_continue: autoContinue,
@@ -375,6 +375,13 @@ setChaining] = useState(editTask?.chaining || 'none');
                     setIsCustomType(true);
                   } else {
                     setType(e.target.value);
+                    // Auto-select flow if one is linked to this type
+                    const matchingFlow = flows.find(f => (f.default_types || []).includes(e.target.value));
+                    if (matchingFlow) {
+                      setFlowId(matchingFlow.id);
+                      setAssignee('');
+                      setMode('ai');
+                    }
                   }
                 }}>
                   {BUILT_IN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
