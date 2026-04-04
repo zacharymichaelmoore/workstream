@@ -91,9 +91,14 @@ gitRouter.post('/api/git/pr', requireAuth, async (req, res) => {
 
 // Review + fix + create PR for a workstream
 gitRouter.post('/api/git/workstream-review-pr', requireAuth, async (req, res) => {
-  const { workstreamId, localPath } = req.body;
+  let { workstreamId, localPath } = req.body;
   if (!workstreamId || !localPath) {
     return res.status(400).json({ error: 'workstreamId and localPath are required' });
+  }
+
+  // Expand ~ to home directory
+  if (localPath.startsWith('~/')) {
+    localPath = localPath.replace('~', process.env.HOME || '/home/sixbox');
   }
 
   try {
