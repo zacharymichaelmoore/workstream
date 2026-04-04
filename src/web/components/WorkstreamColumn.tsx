@@ -853,7 +853,7 @@ export function WorkstreamColumn({
         </div>
       )}
 
-      {wsStatus === 'review failed' && (
+      {wsStatus === 'review_failed' && (
         <div className={`${s.completeBanner} ${s.failedBanner}`}>
           <span>Review failed</span>
           {onCreatePr && (
