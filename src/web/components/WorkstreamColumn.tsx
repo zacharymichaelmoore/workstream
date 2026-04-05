@@ -211,7 +211,7 @@ export function WorkstreamColumn({
     if (isBacklog) return null;
     const dbStatus = workstream?.status;
     if (dbStatus === 'reviewing') return 'reviewing' as const;
-    if (dbStatus === 'review_failed') return 'review failed' as const;
+    if (dbStatus === 'review_failed') return 'review_failed' as const;
     if (dbStatus === 'complete') return 'done' as const;
     if (dbStatus === 'merged' || dbStatus === 'archived') return 'merged' as const;
     if (totalTasks === 0) return 'open' as const;
