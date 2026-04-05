@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { writeFileSync, readFileSync, existsSync, readdirSync, statSync } from 'fs';
-import { resolve, join, basename } from 'path';
+import { resolve, join, basename, isAbsolute } from 'path';
 import { homedir } from 'os';
 import { supabase } from '../supabase.js';
 import { requireAuth } from '../auth-middleware.js';
@@ -86,11 +86,20 @@ dataRouter.post('/api/projects', requireAuth, async (req, res) => {
     .single();
   if (error) return res.status(400).json({ error: error.message });
 
+  let normalizedPath = local_path || null;
+  if (normalizedPath) {
+    if (normalizedPath.startsWith('~/')) {
+      normalizedPath = normalizedPath.replace('~', process.env.HOME || homedir());
+    } else if (!isAbsolute(normalizedPath)) {
+      normalizedPath = resolve(process.env.HOME || homedir(), normalizedPath);
+    }
+  }
+
   await supabase.from('project_members').insert({
     project_id: project.id,
     user_id: userId,
     role: 'admin',
-    local_path: local_path || null,
+    local_path: normalizedPath,
   });
 
   // Seed default AI flows for the new project
